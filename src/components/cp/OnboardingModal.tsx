@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ArrowRight, CheckCircle2, Loader2, RefreshCw, Sparkles } from "lucide-react";
 import { actions, useData, useHydrated } from "@/lib/cp/store";
@@ -9,8 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 export function OnboardingModal() {
-  const hydrated = useHydrated();
-  const data = useData();
+  const hydrated = useHydrated({ isShell: true });
+  const data = useData({ isShell: true });
   const today = todayISO();
 
   const [cfHandle, setCfHandle] = useState(data.settings.cfHandle || "");
@@ -27,6 +27,12 @@ export function OnboardingModal() {
   const [verifying, setVerifying] = useState(false);
   const [verifyError, setVerifyError] = useState<string | null>(null);
   const [verifiedPayload, setVerifiedPayload] = useState<CodeforcesSyncPayload | null>(null);
+
+  useEffect(() => {
+    if (hydrated && !data.onboarded) {
+      setStartDate(todayISO());
+    }
+  }, [hydrated, data.onboarded]);
 
   if (!hydrated || data.onboarded) {
     return null;

@@ -3,9 +3,21 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ExternalLink, Loader2, Pencil, Plus, RefreshCw, Search, Trash2, X } from "lucide-react";
 import { actions, uid, useData } from "@/lib/cp/store";
-import { isClassifiedSolved, isSolved, RATING_BUCKETS, ratingBucket } from "@/lib/cp/stats";
+import {
+  isClassifiedSolved,
+  isSolved,
+  platformBreakdownStats,
+  RATING_BUCKETS,
+  ratingBucket,
+} from "@/lib/cp/stats";
 import { formatDate, todayISO } from "@/lib/cp/dates";
-import type { Problem, ProblemPlatform, ProblemStatus } from "@/lib/cp/types";
+import type {
+  Problem,
+  ProblemDifficultyLabel,
+  ProblemPlatform,
+  ProblemStatus,
+} from "@/lib/cp/types";
+import { ALL_PROBLEM_PLATFORMS, PRIMARY_PLATFORM_IDS } from "@/integrations/registry";
 import {
   BentoCard,
   Confirm,
@@ -16,6 +28,7 @@ import {
   StatusIndicator,
   STATUS_LABEL,
 } from "@/components/cp/ui";
+import { PlatformLogoBadge } from "@/components/cp/PlatformWidgets";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,13 +41,13 @@ export const Route = createFileRoute("/problems")({
       {
         name: "description",
         content:
-          "Developer-focused competitive programming problem archive, filters and status tracker.",
+          "Unified multi-platform competitive programming problem archive, filters and solving method classification.",
       },
       { property: "og:title", content: "Problems — CP Tracker" },
       {
         property: "og:description",
         content:
-          "Developer-focused competitive programming problem archive, filters and status tracker.",
+          "Unified multi-platform competitive programming problem archive, filters and solving method classification.",
       },
     ],
   }),
@@ -53,10 +66,12 @@ const STATUS_FILTERS: { value: ProblemStatus | "all"; label: string }[] = [
 
 interface ProblemDraft {
   id: string;
+  problemId: string;
   title: string;
   url: string;
   platform: ProblemPlatform;
   rating: string;
+  difficultyLabel: ProblemDifficultyLabel | "";
   topic: string;
   tagsText: string;
   date: string;
@@ -70,10 +85,12 @@ interface ProblemDraft {
 function emptyDraft(today: string): ProblemDraft {
   return {
     id: uid(),
+    problemId: "",
     title: "",
     url: "",
     platform: "Codeforces",
     rating: "",
+    difficultyLabel: "",
     topic: "",
     tagsText: "",
     date: today,
@@ -86,7 +103,6 @@ function emptyDraft(today: string): ProblemDraft {
 function ProblemsPage() {
   const data = useData();
   const today = todayISO();
-  const s = data.settings;
 
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<ProblemStatus | "all">("all");
@@ -96,6 +112,11 @@ function ProblemsPage() {
   const [dateFilter, setDateFilter] = useState<string>("");
   const [editing, setEditing] = useState<ProblemDraft | null>(null);
   const [formError, setFormError] = useState<string>("");
+  const [syncingAll, setSyncingAll] = useState(false);
+
+  const connectedPlatformsCount = PRIMARY_PLATFORM_IDS.filter(
+    (pid) => data.platforms[pid]?.username.trim().length > 0,
+  ).length;
 
   const allTopicsAndTags = useMemo(() => {
     const set = new Set<string>();
@@ -113,7 +134,13 @@ function ProblemsPage() {
     return [...data.problems]
       .filter((p) => {
         if (statusFilter !== "all" && p.status !== statusFilter) return false;
-        if (bucketFilter !== "all" && ratingBucket(p.rating) !== bucketFilter) return false;
+        if (bucketFilter !== "all") {
+          if (bucketFilter === "Easy" || bucketFilter === "Medium" || bucketFilter === "Hard") {
+            if (p.difficultyLabel !== bucketFilter) return false;
+          } else if (ratingBucket(p.rating) !== bucketFilter) {
+            return false;
+          }
+        }
         if (platformFilter !== "all" && (p.platform ?? "Codeforces") !== platformFilter) {
           return false;
         }
@@ -127,14 +154,25 @@ function ProblemsPage() {
         }
         if (q) {
           const inTitle = p.title.toLowerCase().includes(q);
+          const inProblemId = (p.problemId ?? "").toLowerCase().includes(q);
           const inTopic = p.topic.toLowerCase().includes(q);
           const inTags = (p.tags ?? []).some((t) => t.toLowerCase().includes(q));
           const inRating = String(p.rating ?? "").includes(q);
+          const inDiff = (p.difficultyLabel ?? "").toLowerCase().includes(q);
           const inContest = String(p.contestId ?? "")
             .toLowerCase()
             .includes(q);
           const inNotes = (p.notes ?? "").toLowerCase().includes(q);
-          if (!inTitle && !inTopic && !inTags && !inRating && !inContest && !inNotes) {
+          if (
+            !inTitle &&
+            !inProblemId &&
+            !inTopic &&
+            !inTags &&
+            !inRating &&
+            !inDiff &&
+            !inContest &&
+            !inNotes
+          ) {
             return false;
           }
         }
@@ -143,6 +181,7 @@ function ProblemsPage() {
       .sort((a, b) => b.date.localeCompare(a.date) || (b.rating ?? 0) - (a.rating ?? 0));
   }, [data.problems, query, statusFilter, bucketFilter, topicFilter, platformFilter, dateFilter]);
 
+  const breakdown = platformBreakdownStats(data);
   const solvedCount = data.problems.filter(isSolved).length;
   const classifiedSolvedCount = data.problems.filter(isClassifiedSolved).length;
   const independentCount = data.problems.filter((p) => p.status === "independent").length;
@@ -161,10 +200,12 @@ function ProblemsPage() {
     setFormError("");
     setEditing({
       id: p.id,
+      problemId: p.problemId ?? "",
       title: p.title,
       url: p.url,
       platform: p.platform ?? "Codeforces",
       rating: p.rating != null ? String(p.rating) : "",
+      difficultyLabel: p.difficultyLabel ?? "",
       topic: p.topic,
       tagsText: (p.tags ?? []).join(", "),
       date: p.date,
@@ -202,10 +243,12 @@ function ProblemsPage() {
 
     const payload: Problem = {
       id: editing.id,
+      ...(editing.problemId.trim() ? { problemId: editing.problemId.trim() } : {}),
       title: editing.title.trim(),
       url: editing.url.trim(),
       platform: editing.platform,
       rating: r,
+      difficultyLabel: editing.difficultyLabel || null,
       topic: primaryTopic,
       tags: allTags,
       date: editing.date || today,
@@ -225,40 +268,44 @@ function ProblemsPage() {
     toast.success(`${p.title} classified as ${STATUS_LABEL[nextStatus]}`);
   };
 
-  const handleSyncCF = async () => {
-    try {
-      const res = await actions.syncCodeforces();
-      toast.success(
-        `Synced ${res.profile.uniqueSolvedCount} solved problems from @${res.profile.handle}`,
+  const handleSyncAll = async () => {
+    setSyncingAll(true);
+    const { synced, failed } = await actions.syncAllConnectedPlatforms();
+    setSyncingAll(false);
+    if (synced.length > 0 && failed.length === 0) {
+      toast.success(`Synchronized problems across ${synced.length} connected platform(s).`);
+    } else if (synced.length > 0 && failed.length > 0) {
+      toast.warning(
+        `Synchronized ${synced.length} platform(s). ${failed.length} failed temporarily; your saved data is safe.`,
       );
-    } catch (err) {
-      toast.error((err as Error).message);
+    } else if (failed.length > 0) {
+      toast.error(failed[0]!.error);
     }
   };
 
   return (
     <div className="space-y-6">
       <PageHeader
-        kicker="DEVELOPER PROBLEM ARCHIVE"
-        title="Problem Tracker"
-        subtitle="Combine accepted Codeforces submissions with manually tracked problems across Codeforces, AtCoder, CSES, and other judges."
+        kicker="UNIFIED MULTI-PLATFORM PROBLEM ARCHIVE"
+        title="Unified Problem Tracker"
+        subtitle="Combine accepted submissions from Codeforces, AtCoder, and LeetCode with manually tracked problems from CodeChef, CSES, HackerRank, GeeksforGeeks, and other online judges."
         action={
           <div className="flex flex-wrap items-center gap-2">
-            {s.cfHandle && (
+            {connectedPlatformsCount > 0 && (
               <Button
                 type="button"
                 variant="outline"
-                disabled={data.cfSync.status === "syncing"}
-                onClick={() => void handleSyncCF()}
+                disabled={syncingAll}
+                onClick={() => void handleSyncAll()}
                 className="rounded-full bg-surface-white"
               >
-                {data.cfSync.status === "syncing" ? (
+                {syncingAll ? (
                   <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Syncing...
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Syncing Platforms...
                   </>
                 ) : (
                   <>
-                    <RefreshCw className="h-3.5 w-3.5" /> Sync @{s.cfHandle}
+                    <RefreshCw className="h-3.5 w-3.5" /> Sync All Platforms
                   </>
                 )}
               </Button>
@@ -273,10 +320,14 @@ function ProblemsPage() {
       {/* Compact Bento Summary Strip */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-2xl border border-charcoal/10 bg-ivory p-4">
-          <div className="text-[11px] font-mono uppercase text-muted-foreground">Unique Solved</div>
+          <div className="text-[11px] font-mono uppercase text-muted-foreground">
+            Verified Tracked Solved
+          </div>
           <div className="num font-heading mt-1 text-3xl font-bold">{solvedCount}</div>
           <div className="mt-0.5 text-xs text-muted-foreground">
-            {data.problems.length} total tracked
+            {breakdown.totalAcrossConnectedPlatforms > solvedCount
+              ? `${breakdown.totalAcrossConnectedPlatforms} total across platforms`
+              : `${data.problems.length} total problem records`}
           </div>
         </div>
         <div className="rounded-2xl border border-charcoal/15 bg-lime p-4 text-charcoal">
@@ -296,7 +347,7 @@ function ProblemsPage() {
             {assistedCount}{" "}
             {unclassifiedCount > 0 && (
               <span className="font-mono text-sm font-normal text-charcoal/75">
-                (+{unclassifiedCount} CF)
+                (+{unclassifiedCount} imported)
               </span>
             )}
           </div>
@@ -317,7 +368,7 @@ function ProblemsPage() {
       {editing && (
         <BentoCard
           surface="white"
-          kicker="PROBLEM RECORD"
+          kicker="UNIFIED PROBLEM RECORD"
           title={data.problems.some((x) => x.id === editing.id) ? "Edit Problem" : "Add Problem"}
           action={
             <Button
@@ -336,7 +387,7 @@ function ProblemsPage() {
               <Field label="Problem Name" className="sm:col-span-2">
                 <Input
                   autoFocus
-                  placeholder="e.g. 520B — Two Buttons"
+                  placeholder="e.g. 520B — Two Buttons, ABC350 A, or Two Sum"
                   value={editing.title}
                   onChange={(e) => setEditing({ ...editing, title: e.target.value })}
                 />
@@ -350,11 +401,20 @@ function ProblemsPage() {
                     setEditing({ ...editing, platform: e.target.value as ProblemPlatform })
                   }
                 >
-                  <option value="Codeforces">Codeforces</option>
-                  <option value="AtCoder">AtCoder</option>
-                  <option value="CSES">CSES</option>
-                  <option value="Other">Other Online Judge</option>
+                  {ALL_PROBLEM_PLATFORMS.map((plat) => (
+                    <option key={plat} value={plat}>
+                      {plat}
+                    </option>
+                  ))}
                 </select>
+              </Field>
+              <Field label="Problem ID / Slug (Optional)">
+                <Input
+                  placeholder="e.g. 520B, abc350_a, two-sum"
+                  value={editing.problemId}
+                  onChange={(e) => setEditing({ ...editing, problemId: e.target.value })}
+                  className="font-mono"
+                />
               </Field>
               <Field label="Problem URL" className="sm:col-span-2">
                 <Input
@@ -363,7 +423,7 @@ function ProblemsPage() {
                   onChange={(e) => setEditing({ ...editing, url: e.target.value })}
                 />
               </Field>
-              <Field label="Rating (Optional)">
+              <Field label="Numeric Rating (Optional)">
                 <Input
                   inputMode="numeric"
                   placeholder="e.g. 1400"
@@ -373,6 +433,24 @@ function ProblemsPage() {
                   }
                   className="num font-mono"
                 />
+              </Field>
+              <Field label="Difficulty Label (Optional)">
+                <select
+                  aria-label="Difficulty Label"
+                  className={selectCls}
+                  value={editing.difficultyLabel}
+                  onChange={(e) =>
+                    setEditing({
+                      ...editing,
+                      difficultyLabel: e.target.value as ProblemDifficultyLabel | "",
+                    })
+                  }
+                >
+                  <option value="">None (Use Numeric Rating)</option>
+                  <option value="Easy">Easy</option>
+                  <option value="Medium">Medium</option>
+                  <option value="Hard">Hard</option>
+                </select>
               </Field>
               <Field label="Primary Topic">
                 <Input
@@ -406,7 +484,7 @@ function ProblemsPage() {
                   <option value="independent">Independent</option>
                   <option value="hint">Hint-assisted</option>
                   <option value="editorial">Editorial-assisted</option>
-                  <option value="unclassified">Imported · Unclassified</option>
+                  <option value="unclassified">Unknown · Unclassified</option>
                   <option value="resolved">Re-solved / Upsolved</option>
                   <option value="unsolved">Unsolved</option>
                 </select>
@@ -481,13 +559,13 @@ function ProblemsPage() {
             })}
           </div>
 
-          {/* Search, Rating Band, Tag/Topic, Platform & Date Filters */}
+          {/* Search, Platform, Difficulty/Rating Band, Tag/Topic, & Date Filters */}
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-12">
             <div className="relative sm:col-span-4">
               <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 aria-label="Search problems"
-                placeholder="Search title, contest ID, tag, notes..."
+                placeholder="Search title, ID, contest, tag, notes..."
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 className="h-10 rounded-xl bg-surface-white pl-9"
@@ -501,25 +579,33 @@ function ProblemsPage() {
                 className={selectCls}
               >
                 <option value="all">All platforms</option>
-                <option value="Codeforces">Codeforces</option>
-                <option value="AtCoder">AtCoder</option>
-                <option value="CSES">CSES</option>
-                <option value="Other">Other</option>
+                {ALL_PROBLEM_PLATFORMS.map((plat) => (
+                  <option key={plat} value={plat}>
+                    {plat}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="sm:col-span-2">
               <select
-                aria-label="Filter by rating band"
+                aria-label="Filter by rating or difficulty"
                 value={bucketFilter}
                 onChange={(e) => setBucketFilter(e.target.value)}
                 className={selectCls}
               >
-                <option value="all">All ratings</option>
-                {RATING_BUCKETS.map((b) => (
-                  <option key={b} value={b}>
-                    Rating: {b}
-                  </option>
-                ))}
+                <option value="all">All difficulties</option>
+                <optgroup label="Numeric Rating">
+                  {RATING_BUCKETS.map((b) => (
+                    <option key={b} value={b}>
+                      Rating: {b}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Difficulty Tier">
+                  <option value="Easy">Tier: Easy</option>
+                  <option value="Medium">Tier: Medium</option>
+                  <option value="Hard">Tier: Hard</option>
+                </optgroup>
               </select>
             </div>
             <div className="sm:col-span-2">
@@ -554,19 +640,20 @@ function ProblemsPage() {
       {data.problems.length === 0 ? (
         <Empty title="You haven't tracked any problems yet.">
           <p className="max-w-md mx-auto">
-            Add your first problem manually from Codeforces, AtCoder, or CSES, or connect your
-            Codeforces handle to automatically import your unique solved submissions.
+            Add your first problem manually from Codeforces, CodeChef, AtCoder, LeetCode, or CSES,
+            or connect your accounts on the Platforms page to automatically import solved
+            submissions.
           </p>
           <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
             <Button onClick={openNew} className="rounded-full px-5">
               <Plus className="h-4 w-4" /> Add your first problem
             </Button>
-            {!s.cfHandle && (
+            {connectedPlatformsCount === 0 && (
               <Link
-                to="/settings"
+                to="/platforms"
                 className="inline-flex h-9 items-center gap-1.5 rounded-full border border-charcoal/20 bg-surface-white px-4 text-xs font-semibold text-foreground hover:bg-ivory"
               >
-                <span>Connect Codeforces</span>
+                <span>Connect Platforms</span>
               </Link>
             )}
           </div>
@@ -584,7 +671,7 @@ function ProblemsPage() {
                 <tr className="border-b border-charcoal/10 bg-ivory/80 font-mono text-[11px] uppercase text-muted-foreground">
                   <th className="py-3 pl-6 pr-3 font-semibold">Problem</th>
                   <th className="px-3 py-3 font-semibold">Platform &amp; Tags</th>
-                  <th className="px-3 py-3 font-semibold text-right">Rating</th>
+                  <th className="px-3 py-3 font-semibold text-right">Difficulty / Rating</th>
                   <th className="px-3 py-3 font-semibold">Solving Method</th>
                   <th className="px-3 py-3 font-semibold text-right">Time</th>
                   <th className="px-3 py-3 font-semibold">Date</th>
@@ -616,13 +703,16 @@ function ProblemsPage() {
                       )}
                     </td>
                     <td className="px-3 py-3.5 text-xs text-muted-foreground">
-                      <span className="font-mono text-[10px] font-semibold uppercase text-foreground/80 mr-1.5">
-                        {p.platform ?? "Codeforces"}
-                      </span>
-                      <span>· {p.topic || "General"}</span>
+                      <div className="flex items-center gap-2">
+                        <PlatformLogoBadge platform={p.platform ?? "Codeforces"} size="sm" />
+                        <span className="font-mono text-[10px] font-semibold uppercase text-foreground/85">
+                          {p.platform ?? "Codeforces"}
+                        </span>
+                        <span>· {p.topic || "General"}</span>
+                      </div>
                     </td>
                     <td className="num px-3 py-3.5 text-right font-mono text-xs font-bold">
-                      {p.rating ?? "—"}
+                      {p.rating != null ? p.rating : p.difficultyLabel ? p.difficultyLabel : "—"}
                     </td>
                     <td className="px-3 py-3.5">
                       <div className="flex flex-wrap items-center gap-1.5">
@@ -713,6 +803,7 @@ function ProblemsPage() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
+                      <PlatformLogoBadge platform={p.platform ?? "Codeforces"} size="sm" />
                       <span className="font-heading text-sm font-bold text-foreground truncate">
                         {p.title}
                       </span>
@@ -736,7 +827,11 @@ function ProblemsPage() {
                       <span>{p.topic || "General"}</span>
                       <span>·</span>
                       <span className="num font-mono font-semibold text-foreground">
-                        {p.rating ? `Rating ${p.rating}` : "Unrated"}
+                        {p.rating
+                          ? `Rating ${p.rating}`
+                          : p.difficultyLabel
+                            ? p.difficultyLabel
+                            : "Unrated"}
                       </span>
                       <span>·</span>
                       <span className="num font-mono">

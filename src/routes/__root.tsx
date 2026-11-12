@@ -13,6 +13,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AppShell } from "@/components/cp/AppShell";
+import { ssrTodayISO } from "@/lib/cp/dates";
 import { Toaster } from "sonner";
 
 const APP_DESCRIPTION =
@@ -124,8 +125,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 });
 
 function RootShell({ children }: { children: ReactNode }) {
+  const ssrToday = ssrTodayISO();
   return (
-    <html lang="en">
+    <html lang="en" data-ssr-today={ssrToday} suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
@@ -134,7 +136,7 @@ function RootShell({ children }: { children: ReactNode }) {
         />
         <HeadContent />
       </head>
-      <body>
+      <body suppressHydrationWarning>
         {children}
         <Scripts />
       </body>

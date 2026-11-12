@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { emptyData } from "./seed";
-import { validateBackupJSON } from "./store";
+import { ssrTodayISO, todayISO, toUTCISO } from "./dates";
+import { load, validateBackupJSON } from "./store";
 import { mergeCodeforcesIntoAppData, parseCodeforcesData } from "./codeforces";
 import {
   effectiveTopicStatus,
@@ -298,4 +299,185 @@ test("upcomingTopics, topicDistribution, weeklyConsistency, and validateBackupJS
   assert.equal(parsed.summary.logsCount, 2);
   assert.throws(() => validateBackupJSON(""), /Please provide a JSON backup/);
   assert.throws(() => validateBackupJSON("{not-valid-json"), /Invalid JSON format/);
+});
+
+test("multi-platform parsers and platform-scoped deduplication keep same-named problems across judges distinct", async () => {
+  const { normalizeCodeChefPayload, parseCodeChefProfileHtml } =
+    await import("../../integrations/codechef");
+  const { parseAtCoderPayload } = await import("../../integrations/atcoder");
+  const { parseLeetCodeGraphQLPayload } = await import("../../integrations/leetcode");
+  const { getProblemDedupKey, mergePlatformSyncIntoAppData } =
+    await import("../../integrations/registry");
+  const { platformBreakdownStats, platformRatingHistory } = await import("./stats");
+
+  // 1. Platform-scoped deduplication: Codeforces "Two Sum" and LeetCode "Two Sum" must never collide
+  const cfProblem = {
+    id: "cf-1",
+    title: "Two Sum",
+    url: "https://codeforces.com/problemset/problem/1/A",
+    platform: "Codeforces" as const,
+    rating: 1000,
+    topic: "Math",
+    date: "2026-11-12",
+    status: "independent" as const,
+    minutes: 15,
+  };
+  const lcProblem = {
+    id: "lc-1",
+    title: "Two Sum",
+    url: "https://leetcode.com/problems/two-sum/",
+    platform: "LeetCode" as const,
+    rating: null,
+    difficultyLabel: "Easy" as const,
+    topic: "Array",
+    date: "2026-11-12",
+    status: "independent" as const,
+    minutes: 10,
+  };
+  assert.notEqual(getProblemDedupKey(cfProblem), getProblemDedupKey(lcProblem));
+
+  // 2. CodeChef HTML parser extracts rating, highest rating, stars, ranks, contests, and total solved
+  const sampleCCHtml = `
+    <html>
+      <body>
+        <div class="rating-number">2145</div>
+        <span class="rating">6★</span>
+        <small>(Highest Rating 2210)</small>
+        <ul class="inline-list">
+          <li><a href="/ratings/all"><strong>120</strong></a> Global Rank</li>
+          <li><a href="/ratings/all?filterBy=Country%3DIndia"><strong>45</strong></a> Country Rank</li>
+        </ul>
+        <h3>Total Problems Solved: 342</h3>
+        <script>
+          var all_rating = [{"code":"START160A","getyear":"2026","getmonth":"10","getday":"15","rating":"2145","rank":"18","name":"Starters 160 Division 1"}];
+        </script>
+      </body>
+    </html>
+  `;
+  const ccRaw = parseCodeChefProfileHtml("cc_coder", sampleCCHtml);
+  const ccSync = normalizeCodeChefPayload(ccRaw, "2026-11-12T10:00:00Z");
+  assert.equal(ccSync.account.currentRating, 2145);
+  assert.equal(ccSync.account.highestRating, 2210);
+  assert.equal(ccSync.account.extraMetrics.stars, "5★");
+  assert.equal(ccSync.account.extraMetrics.globalRank, 120);
+  assert.equal(ccSync.account.extraMetrics.countryRank, 45);
+  assert.equal(ccSync.account.totalSolved, 342);
+  assert.equal(ccSync.contests.length, 1);
+  assert.equal(ccSync.contests[0]?.newRating, 2145);
+
+  // 3. AtCoder parser extracts rating, color tier, performance, and unique AC problems
+  const acSync = parseAtCoderPayload(
+    "ac_coder",
+    [
+      {
+        IsRated: true,
+        Place: 250,
+        OldRating: 1120,
+        NewRating: 1245,
+        Performance: 1580,
+        ContestName: "AtCoder Beginner Contest 380",
+        ContestScreenName: "abc380.contest.atcoder.jp",
+        EndTime: "2026-11-10T14:00:00+09:00",
+      },
+    ],
+    185,
+    4200,
+    [
+      {
+        id: 9001,
+        epoch_second: 1731240000,
+        problem_id: "abc380_a",
+        contest_id: "abc380",
+        user_id: "ac_coder",
+        language: "C++",
+        point: 100,
+        result: "AC",
+      },
+    ],
+    "2026-11-12T10:00:00Z",
+  );
+  assert.equal(acSync.account.currentRating, 1245);
+  assert.equal(acSync.account.rankTitle, "Cyan (1 Kyu)");
+  assert.equal(acSync.account.totalSolved, 185);
+  assert.equal(acSync.contests[0]?.performance, 1580);
+  assert.equal(acSync.problems.length, 1);
+
+  // 4. LeetCode GraphQL parser extracts Easy/Medium/Hard solved, contest rating, and recent AC
+  const lcSync = parseLeetCodeGraphQLPayload(
+    {
+      matchedUser: {
+        username: "lc_coder",
+        profile: { ranking: 5120 },
+        submitStatsGlobal: {
+          acSubmissionNum: [
+            { difficulty: "All", count: 410, submissions: 600 },
+            { difficulty: "Easy", count: 150, submissions: 200 },
+            { difficulty: "Medium", count: 200, submissions: 300 },
+            { difficulty: "Hard", count: 60, submissions: 100 },
+          ],
+        },
+        tagProblemCounts: {
+          fundamental: [{ tagName: "Array", problemsSolved: 120 }],
+          intermediate: [{ tagName: "Dynamic Programming", problemsSolved: 85 }],
+        },
+      },
+      userContestRanking: {
+        attendedContestsCount: 12,
+        rating: 1945.4,
+        globalRanking: 3100,
+        topPercentage: 3.5,
+      },
+      userContestRankingHistory: [
+        {
+          attended: true,
+          rating: 1945.4,
+          ranking: 410,
+          problemsSolved: 3,
+          totalProblems: 4,
+          contest: { title: "Weekly Contest 420", startTime: 1731100000 },
+        },
+      ],
+      recentAcSubmissionList: [
+        { id: "1", title: "Two Sum", titleSlug: "two-sum", timestamp: "1731100500" },
+      ],
+    },
+    "2026-11-12T10:00:00Z",
+  );
+  assert.equal(lcSync.account.currentRating, 1945);
+  assert.equal(lcSync.account.totalSolved, 410);
+  assert.equal(lcSync.account.extraMetrics.easySolved, 150);
+  assert.equal(lcSync.account.extraMetrics.mediumSolved, 200);
+  assert.equal(lcSync.account.extraMetrics.hardSolved, 60);
+  assert.equal(lcSync.contests.length, 1);
+  assert.equal(lcSync.problems.length, 1);
+
+  // 5. Merging multiple platforms preserves independent rating scales and problem records
+  let app = emptyData("2026-11-12");
+  app.problems.push(cfProblem);
+  app = mergePlatformSyncIntoAppData(app, "codechef", ccSync);
+  app = mergePlatformSyncIntoAppData(app, "atcoder", acSync);
+  app = mergePlatformSyncIntoAppData(app, "leetcode", lcSync);
+
+  assert.equal(app.platforms.codechef.currentRating, 2145);
+  assert.equal(app.platforms.atcoder.currentRating, 1245);
+  assert.equal(app.platforms.leetcode.currentRating, 1945);
+  assert.equal(platformRatingHistory(app, "codechef")[0]?.rating, 2145);
+  assert.equal(platformRatingHistory(app, "atcoder")[0]?.rating, 1245);
+  assert.equal(platformRatingHistory(app, "leetcode")[0]?.rating, 1945);
+
+  // Both Codeforces "Two Sum" and LeetCode "Two Sum" remain in app.problems!
+  const twoSums = app.problems.filter((p) => p.title === "Two Sum");
+  assert.equal(twoSums.length, 2);
+
+  const stats = platformBreakdownStats(app);
+  assert.equal(stats.totalVerifiedTrackedProblems, 3); // CF Two Sum + AC abc380_a + LC Two Sum
+  assert.equal(stats.totalAcrossConnectedPlatforms, 1 + 342 + 185 + 410);
+});
+
+test("SSR and pre-hydration todayISO and load() snapshot match UTC date regardless of client timezone", () => {
+  const expectedUtc = toUTCISO(new Date());
+  assert.equal(ssrTodayISO(), expectedUtc);
+  assert.equal(todayISO(), expectedUtc);
+  const ssrData = load();
+  assert.equal(ssrData.settings.startDate, expectedUtc);
 });

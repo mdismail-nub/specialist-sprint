@@ -1,6 +1,7 @@
 import type { AppData, CodeforcesSyncState, Settings } from "./types";
 import { buildRoadmap } from "./roadmap";
 import { todayISO } from "./dates";
+import { createDefaultPlatformsRecord } from "@/integrations/registry";
 
 export const DEFAULT_SETTINGS: Settings = {
   name: "",
@@ -18,6 +19,7 @@ export const DEFAULT_SETTINGS: Settings = {
 export const DEFAULT_CF_SYNC: CodeforcesSyncState = {
   handle: "",
   status: "idle",
+  syncing: false,
   lastSyncedAt: null,
   error: null,
   profile: null,
@@ -27,8 +29,8 @@ export const DEFAULT_CF_SYNC: CodeforcesSyncState = {
  * Clean, zero-record initial state. No mock problems, no fake contests,
  * no hardcoded 632 rating, and no demo logs.
  */
-export function emptyData(): AppData {
-  const startDate = todayISO();
+export function emptyData(customStartDate?: string): AppData {
+  const startDate = customStartDate || todayISO();
   return {
     version: 1,
     onboarded: false,
@@ -38,6 +40,7 @@ export function emptyData(): AppData {
       startDate,
     },
     cfSync: { ...DEFAULT_CF_SYNC },
+    platforms: createDefaultPlatformsRecord(),
     topics: buildRoadmap(),
     logs: [],
     problems: [],

@@ -6,6 +6,7 @@ import {
   BookOpen,
   Download,
   Home,
+  Layers,
   ListChecks,
   Map,
   RefreshCw,
@@ -18,10 +19,12 @@ import { actions, useData, useHydrated } from "@/lib/cp/store";
 import { todayISO } from "@/lib/cp/dates";
 import { useOnlineStatus, usePWA } from "@/lib/cp/pwa";
 import { OnboardingModal } from "@/components/cp/OnboardingModal";
+import { PRIMARY_PLATFORM_IDS } from "@/integrations/registry";
 import { cn } from "@/lib/utils";
 
 const NAV = [
   { to: "/", label: "Overview", icon: Home },
+  { to: "/platforms", label: "Platforms", icon: Layers },
   { to: "/log", label: "Daily Log", icon: BookOpen },
   { to: "/roadmap", label: "Roadmap", icon: Map },
   { to: "/problems", label: "Problems", icon: ListChecks },
@@ -30,12 +33,12 @@ const NAV = [
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
-const MOBILE_BOTTOM = ["/", "/log", "/roadmap", "/problems", "/analytics"];
-const MOBILE_TOP = ["/contests", "/settings"];
+const MOBILE_BOTTOM = ["/", "/platforms", "/log", "/problems", "/analytics"];
+const MOBILE_TOP = ["/roadmap", "/contests", "/settings"];
 const AUTO_SYNC_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
 
 function useTheme() {
-  const { theme } = useData().settings;
+  const { theme } = useData({ isShell: true }).settings;
   useEffect(() => {
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const apply = () => {
@@ -48,26 +51,37 @@ function useTheme() {
   }, [theme]);
 }
 
-function useAutoCodeforcesSync(isOnline: boolean) {
-  const hydrated = useHydrated();
-  const data = useData();
+function useAutoMultiPlatformSync(isOnline: boolean) {
+  const hydrated = useHydrated({ isShell: true });
+  const data = useData({ isShell: true });
   const lastAttemptRef = useRef<number>(0);
 
   useEffect(() => {
     if (!hydrated || !isOnline || !data.onboarded) return;
-    const handle = data.settings.cfHandle.trim();
-    if (!handle || data.cfSync.status === "syncing") return;
+    const connectedIds = PRIMARY_PLATFORM_IDS.filter((pid) => {
+      const acc = data.platforms[pid];
+      return acc && acc.username.trim().length > 0 && acc.connectionStatus !== "manual_only";
+    });
+    if (connectedIds.length === 0) return;
+
+    const anySyncing = connectedIds.some(
+      (pid) => data.platforms[pid].connectionStatus === "syncing",
+    );
+    if (anySyncing) return;
 
     const checkAndSync = () => {
       const now = Date.now();
       if (now - lastAttemptRef.current < 60_000) return;
-      const lastSyncMs = data.cfSync.lastSyncedAt
-        ? new Date(data.cfSync.lastSyncedAt).getTime()
-        : 0;
-      if (!lastSyncMs || now - lastSyncMs >= AUTO_SYNC_INTERVAL_MS) {
+      const needsSync = connectedIds.some((pid) => {
+        const lastSyncMs = data.platforms[pid].lastSyncedAt
+          ? new Date(data.platforms[pid].lastSyncedAt!).getTime()
+          : 0;
+        return !lastSyncMs || now - lastSyncMs >= AUTO_SYNC_INTERVAL_MS;
+      });
+      if (needsSync) {
         lastAttemptRef.current = now;
-        void actions.syncCodeforces(handle).catch(() => {
-          // Error is stored in cfSync.error; preserve existing data silently
+        void actions.syncAllConnectedPlatforms().catch(() => {
+          // Non-destructive background sync
         });
       }
     };
@@ -75,14 +89,7 @@ function useAutoCodeforcesSync(isOnline: boolean) {
     checkAndSync();
     const timer = window.setInterval(checkAndSync, AUTO_SYNC_INTERVAL_MS);
     return () => window.clearInterval(timer);
-  }, [
-    hydrated,
-    isOnline,
-    data.onboarded,
-    data.settings.cfHandle,
-    data.cfSync.lastSyncedAt,
-    data.cfSync.status,
-  ]);
+  }, [hydrated, isOnline, data.onboarded, data.platforms]);
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -90,7 +97,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const today = todayISO();
   const isOnline = useOnlineStatus();
-  useAutoCodeforcesSync(isOnline);
+  useAutoMultiPlatformSync(isOnline);
 
   const {
     isInstalled,

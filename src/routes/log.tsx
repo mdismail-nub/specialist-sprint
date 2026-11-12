@@ -235,6 +235,21 @@ function LogPage() {
                           Contest: {l.contest}
                         </div>
                       )}
+                      {l.platformBreakdown && Object.keys(l.platformBreakdown).length > 0 && (
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                          {Object.entries(l.platformBreakdown)
+                            .filter(([, cnt]) => (cnt ?? 0) > 0)
+                            .map(([plat, cnt]) => (
+                              <span
+                                key={plat}
+                                className="inline-flex items-center gap-1 rounded-full border border-charcoal/12 bg-surface-white px-2.5 py-0.5 font-mono text-[10px] font-semibold text-foreground"
+                              >
+                                <span>{plat}:</span>
+                                <span className="num font-bold">{cnt}</span>
+                              </span>
+                            ))}
+                        </div>
+                      )}
                     </div>
                   </div>
 

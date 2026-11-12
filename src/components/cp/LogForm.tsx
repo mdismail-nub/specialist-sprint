@@ -13,6 +13,7 @@ import { challengeDay, formatDuration, topicForDay } from "@/lib/cp/stats";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { ALL_PROBLEM_PLATFORMS } from "@/integrations/registry";
 import { BentoCard, Field, selectCls } from "./ui";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +23,14 @@ export const CHECKLIST: [ChecklistKey, string][] = [
   ["upsolved", "Upsolved difficult problems"],
   ["reviewed", "Reviewed previous mistakes"],
   ["notes", "Recorded learning notes"],
+];
+
+const PRIMARY_LOG_PLATFORMS: ProblemPlatform[] = [
+  "Codeforces",
+  "CodeChef",
+  "AtCoder",
+  "LeetCode",
+  "CSES",
 ];
 
 function Stepper({
@@ -91,7 +100,11 @@ export function LogForm({
   const day0 = challengeDay(s, initial?.date ?? date);
   const [log, setLog] = useState<DailyLog>(() =>
     initial
-      ? { ...initial, editorial: initial.editorial ?? 0 }
+      ? {
+          ...initial,
+          editorial: initial.editorial ?? 0,
+          platformBreakdown: initial.platformBreakdown ?? {},
+        }
       : {
           id: uid(),
           date,
@@ -114,6 +127,7 @@ export function LogForm({
             reviewed: false,
             notes: false,
           },
+          platformBreakdown: {},
         },
   );
   const [problems, setProblems] = useState<Draft[]>(() =>
@@ -163,6 +177,13 @@ export function LogForm({
       .filter((p) => p.status !== "unsolved")
       .map((p) => Number(p.rating))
       .filter(Boolean);
+    const nextBreakdown: Partial<Record<ProblemPlatform, number>> = {};
+    for (const p of problems) {
+      if (p.status !== "unsolved") {
+        const plat = p.platform ?? "Codeforces";
+        nextBreakdown[plat] = (nextBreakdown[plat] ?? 0) + 1;
+      }
+    }
     setLog((l) => ({
       ...l,
       attempted: problems.length,
@@ -171,7 +192,20 @@ export function LogForm({
       editorial: c("editorial"),
       upsolved: c("resolved"),
       maxRating: ratings.length ? Math.max(...ratings) : l.maxRating,
+      platformBreakdown: nextBreakdown,
     }));
+  };
+
+  const setPlatformCount = (plat: ProblemPlatform, count: number) => {
+    setLog((l) => {
+      const next = { ...(l.platformBreakdown ?? {}) };
+      if (count <= 0) {
+        delete next[plat];
+      } else {
+        next[plat] = count;
+      }
+      return { ...l, platformBreakdown: next };
+    });
   };
 
   const submit = (e: React.FormEvent) => {
@@ -200,8 +234,25 @@ export function LogForm({
       return;
     }
     try {
+      // Automatically merge problem list counts into platformBreakdown if not manually set
+      const computedBreakdown: Partial<Record<ProblemPlatform, number>> = {
+        ...(log.platformBreakdown ?? {}),
+      };
+      for (const p of problems) {
+        if (p.status !== "unsolved") {
+          const plat = p.platform ?? "Codeforces";
+          const inListCount = problems.filter(
+            (x) => (x.platform ?? "Codeforces") === plat && x.status !== "unsolved",
+          ).length;
+          computedBreakdown[plat] = Math.max(computedBreakdown[plat] ?? 0, inListCount);
+        }
+      }
+
       actions.saveLog(
-        log,
+        {
+          ...log,
+          platformBreakdown: computedBreakdown,
+        },
         problems.map((p) => ({
           ...p,
           title: p.title.trim(),
@@ -403,6 +454,50 @@ export function LogForm({
         {errors["attempted"] && (
           <p className="mt-2 text-xs font-medium text-coral">{errors["attempted"]}</p>
         )}
+
+        {/* Multi-Platform Session Breakdown */}
+        <div className="mt-4 rounded-2xl border border-charcoal/10 bg-ivory/70 p-3.5">
+          <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
+            <span className="font-mono text-[11px] font-semibold uppercase text-muted-foreground">
+              Problems Solved by Platform (Optional Multi-Judge Session Breakdown)
+            </span>
+            <span className="font-mono text-[11px] text-muted-foreground">
+              e.g. Codeforces: 2 · LeetCode: 1 · AtCoder: 1
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-5">
+            {PRIMARY_LOG_PLATFORMS.map((plat) => {
+              const count = log.platformBreakdown?.[plat] ?? 0;
+              return (
+                <div
+                  key={plat}
+                  className="flex items-center justify-between rounded-xl border border-charcoal/12 bg-surface-white px-3 py-2"
+                >
+                  <span className="font-heading text-xs font-bold text-foreground">{plat}</span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      aria-label={`Decrease ${plat} count`}
+                      onClick={() => setPlatformCount(plat, Math.max(0, count - 1))}
+                      className="flex h-6 w-6 items-center justify-center rounded-md bg-ivory text-foreground hover:bg-charcoal hover:text-lime"
+                    >
+                      <Minus className="h-3 w-3" />
+                    </button>
+                    <span className="num w-5 text-center font-mono text-xs font-bold">{count}</span>
+                    <button
+                      type="button"
+                      aria-label={`Increase ${plat} count`}
+                      onClick={() => setPlatformCount(plat, count + 1)}
+                      className="flex h-6 w-6 items-center justify-center rounded-md bg-ivory text-foreground hover:bg-charcoal hover:text-lime"
+                    >
+                      <Plus className="h-3 w-3" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </BentoCard>
 
       {/* Logged Problems List */}
@@ -431,8 +526,8 @@ export function LogForm({
       >
         {problems.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-charcoal/15 bg-surface-white/60 px-4 py-6 text-center text-xs text-muted-foreground">
-            Optional: Add specific problems from today&apos;s session to track them in your Problem
-            Tracker.
+            Optional: Add specific problems from today&apos;s session across Codeforces, CodeChef,
+            AtCoder, LeetCode, CSES, or other judges to track them in your Unified Problem Tracker.
           </div>
         ) : (
           <div className="space-y-2.5">
@@ -457,10 +552,11 @@ export function LogForm({
                       value={p.platform ?? "Codeforces"}
                       onChange={(e) => up({ platform: e.target.value as ProblemPlatform })}
                     >
-                      <option value="Codeforces">Codeforces</option>
-                      <option value="AtCoder">AtCoder</option>
-                      <option value="CSES">CSES</option>
-                      <option value="Other">Other Judge</option>
+                      {ALL_PROBLEM_PLATFORMS.map((plat) => (
+                        <option key={plat} value={plat}>
+                          {plat}
+                        </option>
+                      ))}
                     </select>
                     <Input
                       className="col-span-2 sm:col-span-3"

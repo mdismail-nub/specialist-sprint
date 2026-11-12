@@ -25,9 +25,10 @@ export function ActivityHeatmap60({
     cells.find((c) => c.isToday) ??
     [...cells].reverse().find((c) => c.solved > 0 || c.minutes > 0) ??
     cells[0];
-  const [active, setActive] = useState<HeatmapCell | undefined>(defaultCell);
+  const [activeDay, setActiveDay] = useState<number | null>(null);
 
-  const selected = active ?? defaultCell;
+  const selected =
+    (activeDay != null ? cells.find((c) => c.day === activeDay) : undefined) ?? defaultCell;
   const activeCount = cells.filter((c) => c.solved > 0 || c.minutes > 0).length;
   const completedCount = cells.filter((c) => c.completed).length;
   const today = todayISO();
@@ -69,9 +70,9 @@ export function ActivityHeatmap60({
             <button
               key={cell.day}
               type="button"
-              onMouseEnter={() => setActive(cell)}
-              onFocus={() => setActive(cell)}
-              onClick={() => setActive(cell)}
+              onMouseEnter={() => setActiveDay(cell.day)}
+              onFocus={() => setActiveDay(cell.day)}
+              onClick={() => setActiveDay(cell.day)}
               aria-label={`Day ${cell.day}, ${formatDate(cell.date)}: ${cell.solved} problems solved, ${formatDuration(cell.minutes)}`}
               className={cn(
                 "group relative flex aspect-square flex-col items-center justify-center rounded-lg border text-[10px] font-mono transition-transform duration-150 focus:outline-none",
@@ -171,7 +172,7 @@ export function RatingProgressionChart({
   targetRating: number;
   height?: number;
 }) {
-  const [activeIndex, setActiveIndex] = useState<number>(Math.max(0, points.length - 1));
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
 
   if (points.length === 0) {
     return (
@@ -205,7 +206,10 @@ export function RatingProgressionChart({
     );
   }
 
-  const safeIndex = Math.min(activeIndex, Math.max(0, points.length - 1));
+  const safeIndex =
+    activeIndex != null
+      ? Math.min(activeIndex, Math.max(0, points.length - 1))
+      : Math.max(0, points.length - 1);
   const activePoint = points[safeIndex] ?? points.at(-1);
 
   const ratings = points.map((p) => p.rating);

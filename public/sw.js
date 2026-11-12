@@ -84,6 +84,7 @@ self.addEventListener("fetch", (event) => {
   // Caching /node_modules/.vite/deps/* across dev server restarts can mix ?v= hashes
   // and cause duplicate React instances in development mode.
   if (
+    url.pathname.startsWith("/api/") ||
     url.pathname.startsWith("/@") ||
     url.pathname.startsWith("/__vite") ||
     url.pathname.startsWith("/node_modules/") ||

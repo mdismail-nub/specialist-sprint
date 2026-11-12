@@ -1,6 +1,16 @@
-import type { AppData, DailyLog, Problem, Settings, Topic, TopicStatus } from "./types";
+import type {
+  AppData,
+  DailyLog,
+  Problem,
+  ProblemPlatform,
+  Settings,
+  Topic,
+  TopicStatus,
+} from "./types";
 import { PHASES } from "./roadmap";
 import { addDays, diffDays } from "./dates";
+import type { PlatformRatingPoint, PrimaryPlatformId } from "@/integrations/types";
+import { PLATFORM_DISPLAY_NAME, PRIMARY_PLATFORM_IDS } from "@/integrations/registry";
 
 export const solvedOf = (l: DailyLog) => l.independent + l.hinted + (l.editorial ?? 0) + l.upsolved;
 
@@ -24,7 +34,6 @@ export function topicForDay(topics: Topic[], day: number): Topic | undefined {
 
 export function streaks(logs: DailyLog[], s: Settings, today: string) {
   const done = new Set(logs.filter((l) => isComplete(l, s)).map((l) => l.date));
-  // current: count back from today (or yesterday if today isn't done yet)
   let cursor = done.has(today) ? today : addDays(today, -1);
   let current = 0;
   while (done.has(cursor)) {
@@ -206,16 +215,19 @@ export interface RatingPoint {
   rating: number;
   label: string;
   delta: number;
+  performance?: number | null;
 }
 
 /**
- * Returns real rating progression points from recorded/synced contests.
+ * Returns real rating progression points for Codeforces (or primary challenge contests).
  * Never fabricates chart points when no contest rating history exists.
  */
 export function ratingHistory(data: AppData): RatingPoint[] {
   const s = data.settings;
   const sortedContests = [...data.contests]
-    .filter((c) => c.newRating != null)
+    .filter(
+      (c) => c.newRating != null && (!c.platform || c.platform.toLowerCase() === "codeforces"),
+    )
     .sort((a, b) => a.date.localeCompare(b.date));
 
   if (sortedContests.length === 0) {
@@ -248,11 +260,11 @@ export function ratingHistory(data: AppData): RatingPoint[] {
       rating: r,
       label: c.name,
       delta: r - (c.oldRating ?? prev),
+      performance: c.performance ?? null,
     });
     prev = r;
   }
 
-  // If the user manually updated currentRating after the last contest, reflect that point
   if (s.currentRating > 0 && points.at(-1)?.rating !== s.currentRating) {
     const lastDate = points.at(-1)!.date;
     points.push({
@@ -264,6 +276,45 @@ export function ratingHistory(data: AppData): RatingPoint[] {
   }
 
   return points;
+}
+
+/**
+ * Returns native rating progression points for a specific platform (`codeforces`, `codechef`, `atcoder`, `leetcode`).
+ * Never mixes rating scales across platforms!
+ */
+export function platformRatingHistory(data: AppData, platformId: PrimaryPlatformId): RatingPoint[] {
+  if (platformId === "codeforces") {
+    return ratingHistory(data);
+  }
+  const display = PLATFORM_DISPLAY_NAME[platformId].toLowerCase();
+  const fromContests = [...data.contests]
+    .filter((c) => c.platform.toLowerCase() === display && c.newRating != null)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  if (fromContests.length > 0) {
+    let prev: number | null = null;
+    return fromContests.map((c) => {
+      const r = c.newRating!;
+      const old = c.oldRating ?? prev ?? r;
+      prev = r;
+      return {
+        date: c.date,
+        rating: r,
+        label: c.name,
+        delta: r - old,
+        performance: c.performance ?? null,
+      };
+    });
+  }
+
+  const accHistory: PlatformRatingPoint[] = data.platforms?.[platformId]?.ratingHistory ?? [];
+  return accHistory.map((pt) => ({
+    date: pt.date,
+    rating: pt.rating,
+    label: pt.contestName,
+    delta: pt.delta,
+    performance: pt.performance ?? null,
+  }));
 }
 
 export interface UpcomingTopicItem {
@@ -297,28 +348,41 @@ export interface TopicStat {
   pct: number;
 }
 
-export function topicDistribution(data: AppData): TopicStat[] {
+export function topicDistribution(
+  data: AppData,
+  platformFilter: PrimaryPlatformId | "all" = "all",
+  minDateISO?: string,
+): TopicStat[] {
   const map = new Map<string, { solved: number; minutes: number; independent: number }>();
+  const targetPlatformName =
+    platformFilter === "all" ? null : PLATFORM_DISPLAY_NAME[platformFilter].toLowerCase();
 
-  for (const l of data.logs) {
-    const key = (l.topic || "General Practice").trim();
-    const linkedProblems = data.problems.filter((p) => p.logId === l.id && isSolved(p));
-    const unlinkedSolved = Math.max(0, solvedOf(l) - linkedProblems.length);
-    const unlinkedIndep = Math.max(
-      0,
-      l.independent - linkedProblems.filter((p) => p.status === "independent").length,
-    );
-    if (unlinkedSolved === 0 && l.minutes === 0) continue;
-    const prev = map.get(key) ?? { solved: 0, minutes: 0, independent: 0 };
-    map.set(key, {
-      solved: prev.solved + unlinkedSolved,
-      minutes: prev.minutes + l.minutes,
-      independent: prev.independent + unlinkedIndep,
-    });
+  if (platformFilter === "all" || platformFilter === "codeforces") {
+    for (const l of data.logs) {
+      if (minDateISO && l.date < minDateISO) continue;
+      const key = (l.topic || "General Practice").trim();
+      const linkedProblems = data.problems.filter((p) => p.logId === l.id && isSolved(p));
+      const unlinkedSolved = Math.max(0, solvedOf(l) - linkedProblems.length);
+      const unlinkedIndep = Math.max(
+        0,
+        l.independent - linkedProblems.filter((p) => p.status === "independent").length,
+      );
+      if (unlinkedSolved === 0 && l.minutes === 0) continue;
+      const prev = map.get(key) ?? { solved: 0, minutes: 0, independent: 0 };
+      map.set(key, {
+        solved: prev.solved + unlinkedSolved,
+        minutes: prev.minutes + l.minutes,
+        independent: prev.independent + unlinkedIndep,
+      });
+    }
   }
 
   for (const p of data.problems) {
     if (!isSolved(p)) continue;
+    if (minDateISO && p.date < minDateISO) continue;
+    const pPlat = (p.platform ?? "Codeforces").toLowerCase();
+    if (targetPlatformName && pPlat !== targetPlatformName) continue;
+
     const key = (p.topic || p.tags?.[0] || "General Practice").trim();
     const prev = map.get(key) ?? { solved: 0, minutes: 0, independent: 0 };
     map.set(key, {
@@ -326,6 +390,22 @@ export function topicDistribution(data: AppData): TopicStat[] {
       minutes: prev.minutes + (p.logId ? 0 : (p.minutes ?? 0)),
       independent: prev.independent + (p.status === "independent" ? 1 : 0),
     });
+  }
+
+  // Include LeetCode public profile topic counts when viewing LeetCode or All Platforms (all-time)
+  if (!minDateISO && (platformFilter === "all" || platformFilter === "leetcode")) {
+    const lcTopics = data.platforms?.leetcode?.extraMetrics?.topicCounts ?? [];
+    for (const item of lcTopics.slice(0, 12)) {
+      if (item.count <= 0) continue;
+      const existing = map.get(item.topic);
+      if (!existing || existing.solved < item.count) {
+        map.set(item.topic, {
+          solved: Math.max(existing?.solved ?? 0, item.count),
+          minutes: existing?.minutes ?? 0,
+          independent: existing?.independent ?? 0,
+        });
+      }
+    }
   }
 
   const rawTotal = [...map.values()].reduce((acc, v) => acc + v.solved, 0);
@@ -403,14 +483,98 @@ export function weeklyConsistency(data: AppData): WeekConsistency[] {
   return weeks;
 }
 
+export interface PlatformSolvedBreakdownItem {
+  platformId: PrimaryPlatformId | "other";
+  platformName: ProblemPlatform;
+  trackedSolved: number;
+  accountReportedSolved: number | null;
+  effectiveSolved: number;
+  contestsCount: number;
+  currentRating: number | null;
+  rankTitle: string | null;
+  connected: boolean;
+}
+
+/**
+ * Computes unified cross-platform problem and contest breakdowns, clearly distinguishing
+ * verified tracked problem records in `data.problems` from platform-reported totals.
+ */
+export function platformBreakdownStats(data: AppData): {
+  items: PlatformSolvedBreakdownItem[];
+  totalVerifiedTrackedProblems: number;
+  totalAcrossConnectedPlatforms: number;
+} {
+  const solvedProblems = data.problems.filter(isSolved);
+  const items: PlatformSolvedBreakdownItem[] = [];
+
+  for (const pid of PRIMARY_PLATFORM_IDS) {
+    const displayName = PLATFORM_DISPLAY_NAME[pid];
+    const acc = data.platforms?.[pid];
+    const trackedInProblems = solvedProblems.filter(
+      (p) => (p.platform ?? "Codeforces").toLowerCase() === displayName.toLowerCase(),
+    ).length;
+
+    const fromLogBreakdowns = data.logs.reduce(
+      (sum, l) => sum + (l.platformBreakdown?.[displayName] ?? 0),
+      0,
+    );
+    const trackedSolved = Math.max(trackedInProblems, fromLogBreakdowns);
+    const accountReportedSolved = acc?.totalSolved ?? null;
+    const effectiveSolved = Math.max(trackedSolved, accountReportedSolved ?? 0);
+
+    const contestsCount =
+      acc?.totalContests ??
+      data.contests.filter((c) => c.platform.toLowerCase() === displayName.toLowerCase()).length;
+
+    items.push({
+      platformId: pid,
+      platformName: displayName,
+      trackedSolved,
+      accountReportedSolved,
+      effectiveSolved,
+      contestsCount,
+      currentRating: acc?.currentRating ?? null,
+      rankTitle: acc?.rankTitle ?? null,
+      connected: Boolean(acc && acc.username.trim().length > 0),
+    });
+  }
+
+  const otherSolved = solvedProblems.filter((p) => {
+    const plat = (p.platform ?? "Codeforces").toLowerCase();
+    return (
+      plat !== "codeforces" && plat !== "codechef" && plat !== "atcoder" && plat !== "leetcode"
+    );
+  }).length;
+
+  if (otherSolved > 0) {
+    items.push({
+      platformId: "other",
+      platformName: "CSES",
+      trackedSolved: otherSolved,
+      accountReportedSolved: null,
+      effectiveSolved: otherSolved,
+      contestsCount: 0,
+      currentRating: null,
+      rankTitle: null,
+      connected: true,
+    });
+  }
+
+  const totalVerifiedTrackedProblems = solvedProblems.length;
+  const totalAcrossConnectedPlatforms = items.reduce((a, b) => a + b.effectiveSolved, 0);
+
+  return {
+    items,
+    totalVerifiedTrackedProblems,
+    totalAcrossConnectedPlatforms,
+  };
+}
+
 export function summary(data: AppData, today: string) {
   const s = data.settings;
   const logs = data.logs;
   const solvedProblems = data.problems.filter(isSolved);
 
-  // Deduplicate between problem records and aggregate daily log counts:
-  // Any problem in `data.problems` is counted once; if a daily log has aggregate counts
-  // higher than the problems linked to that log, include the unlinked remainder.
   let unlinkedLogSolved = 0;
   let unlinkedLogIndependent = 0;
   let unlinkedLogHinted = 0;
@@ -436,7 +600,9 @@ export function summary(data: AppData, today: string) {
     unlinkedLogSolved += remIndep + remHint + remEdit + remUp;
   }
 
-  const totalSolved = solvedProblems.length + unlinkedLogSolved;
+  const verifiedTrackedSolved = solvedProblems.length + unlinkedLogSolved;
+  const { totalAcrossConnectedPlatforms } = platformBreakdownStats(data);
+  const totalSolved = Math.max(verifiedTrackedSolved, totalAcrossConnectedPlatforms);
 
   const standaloneMinutes = data.problems
     .filter((p) => !p.logId)
@@ -475,6 +641,8 @@ export function summary(data: AppData, today: string) {
   return {
     day,
     totalSolved,
+    verifiedTrackedSolved,
+    totalAcrossConnectedPlatforms,
     totalMinutes,
     independent,
     hinted: hinted + editorial,

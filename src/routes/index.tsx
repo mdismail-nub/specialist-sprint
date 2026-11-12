@@ -29,6 +29,11 @@ import { PHASES } from "@/lib/cp/roadmap";
 import { addDays, formatDate, todayISO } from "@/lib/cp/dates";
 import { BentoCard, EditorialLabel, WavyDivider } from "@/components/cp/ui";
 import { ActivityHeatmap60, RatingProgressionChart } from "@/components/cp/BentoWidgets";
+import {
+  ConnectedPlatformsOverview,
+  MultiPlatformRatingComparison,
+} from "@/components/cp/PlatformWidgets";
+import { PRIMARY_PLATFORM_IDS } from "@/integrations/registry";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -87,13 +92,17 @@ function Overview() {
   const touchStartY = useRef<number | null>(null);
   const PULL_THRESHOLD = 68;
 
+  const connectedPlatformsCount = PRIMARY_PLATFORM_IDS.filter(
+    (pid) => data.platforms[pid]?.username.trim().length > 0,
+  ).length;
+
   const triggerRefresh = async () => {
     if (refreshing || data.cfSync.status === "syncing") return;
     setRefreshing(true);
     try {
       const res = await actions.refreshDashboard();
-      if (res.syncedCF) {
-        toast.success(`Synchronized @${s.cfHandle} with Codeforces`);
+      if (res.syncedPlatforms.length > 0) {
+        toast.success(`Synchronized ${res.syncedPlatforms.length} connected platform(s)`);
       } else {
         toast.success("Dashboard data refreshed");
       }
@@ -235,9 +244,9 @@ function Overview() {
 
           {/* Compact Day, Phase, Date & Live Sync Indicator */}
           <div className="flex flex-wrap items-center gap-2.5 self-start lg:self-end">
-            {/* Codeforces Connection & Refresh Pill */}
+            {/* Connected Platforms & Refresh Pill */}
             <div className="flex items-center gap-1.5 rounded-full border border-charcoal/12 bg-surface-white px-3 py-1.5 text-xs">
-              {s.cfHandle ? (
+              {s.cfHandle || connectedPlatformsCount > 0 ? (
                 <>
                   <span
                     className={cn(
@@ -249,17 +258,23 @@ function Overview() {
                           : "bg-lime border border-charcoal/30",
                     )}
                   />
-                  <span className="font-mono font-bold text-foreground">@{s.cfHandle}</span>
+                  <Link
+                    to="/platforms"
+                    className="font-mono font-bold text-foreground hover:underline"
+                  >
+                    {s.cfHandle ? `@${s.cfHandle}` : `${connectedPlatformsCount} connected`}
+                    {connectedPlatformsCount > 1 ? ` +${connectedPlatformsCount - 1}` : ""}
+                  </Link>
                   <span className="hidden text-[11px] text-muted-foreground sm:inline">
                     · {formatSyncTime(data.cfSync.lastSyncedAt)}
                   </span>
                 </>
               ) : (
                 <Link
-                  to="/settings"
+                  to="/platforms"
                   className="font-mono text-[11px] font-semibold text-muted-foreground hover:text-foreground"
                 >
-                  Connect Codeforces
+                  Connect Platforms
                 </Link>
               )}
               <button
@@ -267,7 +282,7 @@ function Overview() {
                 onClick={() => void triggerRefresh()}
                 disabled={isSyncing}
                 aria-label="Refresh dashboard data"
-                title="Refresh data & synchronize Codeforces"
+                title="Refresh data & synchronize connected platforms"
                 className="ml-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-charcoal text-lime transition-transform hover:scale-105 disabled:opacity-50"
               >
                 <RefreshCw className={cn("h-3 w-3", isSyncing && "animate-spin")} />
@@ -621,8 +636,10 @@ function Overview() {
               </div>
               <p className="mt-2 text-xs text-ivory/70">
                 {sum.totalSolved === 0
-                  ? "No problems tracked yet. Add a problem or sync Codeforces."
-                  : `Unique problems solved across ${sum.practiceDays} logged days.`}
+                  ? "No problems tracked yet. Add a problem or connect your platforms."
+                  : sum.totalAcrossConnectedPlatforms > sum.verifiedTrackedSolved
+                    ? `${sum.verifiedTrackedSolved} verified problem records · ${sum.totalAcrossConnectedPlatforms} total across connected platforms.`
+                    : `Unique problems solved across ${sum.practiceDays} logged days.`}
               </p>
             </div>
 
@@ -831,6 +848,10 @@ function Overview() {
           </div>
         </BentoCard>
       </div>
+
+      {/* CONNECTED PLATFORMS OVERVIEW & MULTI-PLATFORM RATING COMPARISON */}
+      <ConnectedPlatformsOverview data={data} />
+      <MultiPlatformRatingComparison data={data} />
     </div>
   );
 }

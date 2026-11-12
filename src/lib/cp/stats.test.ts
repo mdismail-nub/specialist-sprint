@@ -127,4 +127,31 @@ describe("stats", () => {
     expect(res.summary.logsCount).toBe(1);
     expect(() => validateBackupJSON("{invalid")).toThrow(/Invalid JSON format/);
   });
+
+  it("keeps problems with identical names on different platforms distinct", async () => {
+    const { getProblemDedupKey } = await import("@/integrations/registry");
+    const cfKey = getProblemDedupKey({
+      id: "1",
+      title: "Two Sum",
+      url: "https://codeforces.com/problemset/problem/1/A",
+      platform: "Codeforces",
+      rating: 800,
+      topic: "Math",
+      date: "2026-11-12",
+      status: "independent",
+      minutes: 10,
+    });
+    const lcKey = getProblemDedupKey({
+      id: "2",
+      title: "Two Sum",
+      url: "https://leetcode.com/problems/two-sum/",
+      platform: "LeetCode",
+      rating: null,
+      topic: "Array",
+      date: "2026-11-12",
+      status: "independent",
+      minutes: 10,
+    });
+    expect(cfKey).not.toBe(lcKey);
+  });
 });

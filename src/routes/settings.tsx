@@ -1,12 +1,14 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
+  ArrowUpRight,
   CheckCircle2,
   Copy,
   Download,
+  ExternalLink,
   FileJson,
-  Link2,
+  Layers,
   RefreshCw,
   RotateCcw,
   Share,
@@ -16,6 +18,7 @@ import {
   Upload,
   Wifi,
   WifiOff,
+  Wrench,
 } from "lucide-react";
 import {
   actions,
@@ -28,7 +31,15 @@ import { DEFAULT_SETTINGS } from "@/lib/cp/seed";
 import { formatDate, todayISO } from "@/lib/cp/dates";
 import { useOnlineStatus, usePWA } from "@/lib/cp/pwa";
 import type { Settings, Theme } from "@/lib/cp/types";
+import type { PrimaryPlatformId } from "@/integrations/types";
+import { PLATFORM_INTEGRATIONS, PRIMARY_PLATFORM_IDS } from "@/integrations/registry";
 import { BentoCard, Confirm, Field, PageHeader, selectCls } from "@/components/cp/ui";
+import {
+  DataSourceBadge,
+  formatSyncTimestamp,
+  PlatformConnectionBadge,
+  PlatformLogoBadge,
+} from "@/components/cp/PlatformWidgets";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -41,13 +52,13 @@ export const Route = createFileRoute("/settings")({
       {
         name: "description",
         content:
-          "Configure your 60-day challenge goals, Codeforces sync, ratings, theme, PWA installation, and local data backups.",
+          "Configure your 60-day challenge goals, multi-platform account sync, ratings, theme, PWA installation, and local data backups.",
       },
       { property: "og:title", content: "Settings — CP Tracker" },
       {
         property: "og:description",
         content:
-          "Configure your 60-day challenge goals, Codeforces sync, ratings, theme, PWA installation, and local data backups.",
+          "Configure your 60-day challenge goals, multi-platform account sync, ratings, theme, PWA installation, and local data backups.",
       },
     ],
   }),
@@ -68,8 +79,13 @@ function SettingsPage() {
   } = usePWA();
 
   const [form, setForm] = useState<Settings>(data.settings);
-  const [cfHandleInput, setCfHandleInput] = useState(data.settings.cfHandle);
-  const [cfSyncing, setCfSyncing] = useState(false);
+  const [handles, setHandles] = useState<Record<PrimaryPlatformId, string>>({
+    codeforces: data.platforms.codeforces.username || data.settings.cfHandle,
+    codechef: data.platforms.codechef.username,
+    atcoder: data.platforms.atcoder.username,
+    leetcode: data.platforms.leetcode.username,
+  });
+  const [syncingAll, setSyncingAll] = useState(false);
   const [importText, setImportText] = useState("");
   const [showImport, setShowImport] = useState(false);
   const [showInstallGuide, setShowInstallGuide] = useState(false);
@@ -79,8 +95,23 @@ function SettingsPage() {
 
   useEffect(() => {
     setForm(data.settings);
-    setCfHandleInput(data.settings.cfHandle);
-  }, [data.settings]);
+    setHandles({
+      codeforces: data.platforms.codeforces.username || data.settings.cfHandle,
+      codechef: data.platforms.codechef.username,
+      atcoder: data.platforms.atcoder.username,
+      leetcode: data.platforms.leetcode.username,
+    });
+  }, [
+    data.settings,
+    data.platforms.codeforces.username,
+    data.platforms.codechef.username,
+    data.platforms.atcoder.username,
+    data.platforms.leetcode.username,
+  ]);
+
+  const connectedPlatformsCount = PRIMARY_PLATFORM_IDS.filter(
+    (pid) => data.platforms[pid].username.trim().length > 0,
+  ).length;
 
   const save = (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,27 +127,34 @@ function SettingsPage() {
     toast.success("Challenge settings saved");
   };
 
-  const handleConnectAndSyncCF = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const cleaned = cfHandleInput.trim();
+  const handleSyncPlatform = async (pid: PrimaryPlatformId) => {
+    const cleaned = (handles[pid] || data.platforms[pid].username).trim();
+    const integration = PLATFORM_INTEGRATIONS[pid];
     if (!cleaned) {
-      toast.error("Enter a Codeforces handle to sync.");
+      toast.error(`Enter your ${integration.name} username first.`);
       return;
     }
-    setCfSyncing(true);
-    const res = await actions.syncCodeforces(cleaned);
-    setCfSyncing(false);
+    const res = await actions.syncPlatform(pid, cleaned);
     if (res.ok) {
-      toast.success(`Synced Codeforces account @${cleaned}`);
+      toast.success(`Synchronized ${integration.name} (@${res.result.account.username})`);
     } else {
       toast.error(res.error);
     }
   };
 
-  const handleDisconnectCF = () => {
-    actions.disconnectCodeforces();
-    setCfHandleInput("");
-    toast.success("Disconnected Codeforces handle (your saved records are preserved)");
+  const handleSyncAll = async () => {
+    setSyncingAll(true);
+    const { synced, failed } = await actions.syncAllConnectedPlatforms();
+    setSyncingAll(false);
+    if (synced.length > 0 && failed.length === 0) {
+      toast.success(`Synchronized ${synced.length} connected platform(s).`);
+    } else if (synced.length > 0 && failed.length > 0) {
+      toast.warning(
+        `Synchronized ${synced.length} platform(s). ${failed.length} failed temporarily; your saved data is safe.`,
+      );
+    } else if (failed.length > 0) {
+      toast.error(failed[0]!.error);
+    }
   };
 
   const downloadBackup = () => {
@@ -200,127 +238,197 @@ function SettingsPage() {
     setShowInstallGuide((prev) => !prev);
   };
 
-  const profile = data.cfSync.profile;
-
   return (
     <div className="space-y-6">
       <PageHeader
-        kicker="CONFIGURATION, CODEFORCES SYNC & BACKUP"
-        title="Challenge Settings"
-        subtitle="Configure your Specialist training goals, connect your live Codeforces account, install the PWA, and manage offline backups."
+        kicker="CONFIGURATION, MULTI-PLATFORM SYNC & BACKUP"
+        title="Challenge Settings & Connected Platforms"
+        subtitle="Configure your Specialist training goals, manage connected competitive programming accounts, install the PWA, and manage offline backups."
       />
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
-        {/* Left Column: Challenge Parameters Form + Codeforces Live Sync */}
+        {/* Left Column: Connected Platforms Management + Challenge Parameters Form */}
         <div className="flex flex-col gap-5 lg:col-span-7">
-          {/* Codeforces Live Account Synchronization */}
+          {/* Connected Platforms Management */}
           <BentoCard
             surface="white"
-            kicker="LIVE API INTEGRATION"
-            title="Codeforces Synchronization"
+            kicker="MULTI-PLATFORM ACCOUNT SYNC"
+            title="Connected Platforms Management"
             action={
-              data.settings.cfHandle ? (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-lime px-3 py-1 font-mono text-[11px] font-bold text-charcoal">
-                  <Link2 className="h-3 w-3" /> Connected: @{data.settings.cfHandle}
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-charcoal/8 px-3 py-1 font-mono text-[11px] text-muted-foreground">
-                  Not connected
-                </span>
-              )
-            }
-          >
-            <div className="space-y-4">
-              <form onSubmit={(e) => void handleConnectAndSyncCF(e)} className="flex gap-2">
-                <Input
-                  placeholder="Enter your Codeforces handle (e.g. tourist)"
-                  value={cfHandleInput}
-                  onChange={(e) => setCfHandleInput(e.target.value)}
-                  className="bg-ivory font-mono"
-                />
-                <Button
-                  type="submit"
-                  disabled={cfSyncing || data.cfSync.syncing}
-                  className="rounded-full px-5 shrink-0"
-                >
-                  <RefreshCw
-                    className={cn(
-                      "h-3.5 w-3.5",
-                      (cfSyncing || data.cfSync.syncing) && "animate-spin",
-                    )}
-                  />
-                  <span>{data.settings.cfHandle ? "Sync Now" : "Connect & Sync"}</span>
-                </Button>
-                {data.settings.cfHandle && (
+              <div className="flex items-center gap-2">
+                {connectedPlatformsCount > 0 && (
                   <Button
                     type="button"
+                    size="sm"
                     variant="outline"
-                    onClick={handleDisconnectCF}
-                    className="rounded-full shrink-0"
-                    aria-label="Disconnect Codeforces handle"
+                    disabled={syncingAll}
+                    onClick={() => void handleSyncAll()}
+                    className="h-8 rounded-full bg-ivory text-xs"
                   >
-                    <Unlink className="h-3.5 w-3.5" />
+                    <RefreshCw className={cn("mr-1 h-3 w-3", syncingAll && "animate-spin")} />
+                    <span>{syncingAll ? "Syncing..." : "Sync All"}</span>
                   </Button>
                 )}
-              </form>
+                <Link
+                  to="/platforms"
+                  className="inline-flex items-center gap-1 rounded-full bg-charcoal px-3 py-1 font-mono text-[11px] font-semibold text-lime hover:bg-charcoal/90"
+                >
+                  <Layers className="h-3 w-3" />
+                  <span>Full Hub</span>
+                  <ArrowUpRight className="h-3 w-3" />
+                </Link>
+              </div>
+            }
+          >
+            <div className="space-y-3.5">
+              <p className="text-xs text-muted-foreground">
+                Connect your accounts across Codeforces, CodeChef, AtCoder, and LeetCode.
+                Synchronization is non-destructive and never asks for passwords or session cookies.
+              </p>
 
-              {data.cfSync.error && (
-                <div className="rounded-2xl border border-coral/40 bg-coral/10 px-3.5 py-2.5 text-xs font-medium text-charcoal">
-                  {data.cfSync.error}
-                </div>
-              )}
+              {PRIMARY_PLATFORM_IDS.map((pid) => {
+                const acc = data.platforms[pid];
+                const integration = PLATFORM_INTEGRATIONS[pid];
+                const isConnected = acc.username.trim().length > 0;
+                const isSyncing = acc.connectionStatus === "syncing";
 
-              {profile ? (
-                <div className="rounded-2xl border border-charcoal/12 bg-ivory p-4 space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <div className="font-heading text-base font-bold text-foreground">
-                        @{profile.handle}{" "}
-                        <span className="font-mono text-xs font-semibold uppercase text-sage-deep">
-                          ({profile.rank})
-                        </span>
+                return (
+                  <div
+                    key={pid}
+                    className="rounded-2xl border border-charcoal/12 bg-ivory/75 p-4 space-y-3"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <PlatformLogoBadge platform={pid} size="md" />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-heading text-sm font-bold text-foreground">
+                              {integration.name}
+                            </span>
+                            <PlatformConnectionBadge state={acc.connectionStatus} compact />
+                          </div>
+                          <div className="font-mono text-[10px] text-muted-foreground">
+                            {isConnected
+                              ? `Last synced: ${formatSyncTimestamp(acc.lastSyncedAt)}`
+                              : "Connect your account to start tracking."}
+                          </div>
+                        </div>
                       </div>
-                      <div className="font-mono text-[11px] text-muted-foreground">
-                        Last synced:{" "}
-                        {data.cfSync.lastSyncedAt
-                          ? new Date(data.cfSync.lastSyncedAt).toLocaleString()
-                          : "Just now"}
+                      <DataSourceBadge source={acc.dataSource} />
+                    </div>
+
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        void handleSyncPlatform(pid);
+                      }}
+                      className="flex flex-wrap items-center gap-2"
+                    >
+                      <Input
+                        placeholder={`Enter ${integration.name} username`}
+                        value={handles[pid] ?? ""}
+                        onChange={(e) => setHandles((prev) => ({ ...prev, [pid]: e.target.value }))}
+                        className="h-9 flex-1 min-w-[180px] rounded-xl bg-surface-white font-mono text-xs"
+                        disabled={isSyncing}
+                      />
+                      <Button
+                        type="submit"
+                        size="sm"
+                        disabled={isSyncing}
+                        className="h-9 rounded-full px-4 shrink-0 text-xs font-semibold"
+                      >
+                        <RefreshCw
+                          className={cn("mr-1.5 h-3.5 w-3.5", isSyncing && "animate-spin")}
+                        />
+                        <span>{isConnected ? "Sync Now" : "Connect & Sync"}</span>
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          const h = (handles[pid] || acc.username).trim();
+                          if (!h) {
+                            toast.error(`Enter a ${integration.name} username first.`);
+                            return;
+                          }
+                          actions.setPlatformManualMode(pid, h);
+                          toast.success(`${integration.name} set to Manual Tracking Only mode.`);
+                        }}
+                        className="h-9 rounded-full bg-surface-white text-xs shrink-0"
+                        title="Switch to Manual Tracking Mode"
+                      >
+                        <Wrench className="h-3.5 w-3.5" />
+                      </Button>
+                      {isConnected && (
+                        <Confirm
+                          title={`Disconnect ${integration.name} (@${acc.username})?`}
+                          description={`This disconnects @${acc.username} from automatic ${integration.name} synchronization. Your previously saved problems, contests, and training logs will be safely preserved.`}
+                          confirmLabel="Disconnect Account"
+                          onConfirm={() => {
+                            actions.disconnectPlatform(pid);
+                            setHandles((prev) => ({ ...prev, [pid]: "" }));
+                            toast.success(
+                              `Disconnected ${integration.name} (your saved records are preserved)`,
+                            );
+                          }}
+                          trigger={
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="h-9 rounded-full bg-surface-white shrink-0"
+                              aria-label={`Disconnect ${integration.name} handle`}
+                            >
+                              <Unlink className="h-3.5 w-3.5" />
+                            </Button>
+                          }
+                        />
+                      )}
+                    </form>
+
+                    {acc.lastError && (
+                      <div className="rounded-xl border border-coral/35 bg-coral/10 px-3 py-2 text-xs text-charcoal">
+                        {acc.lastError}
                       </div>
-                    </div>
+                    )}
+
+                    {isConnected && (
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-charcoal/8 pt-2.5 font-mono text-[11px] text-muted-foreground">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <span>
+                            Rating:{" "}
+                            <strong className="text-foreground">
+                              {acc.currentRating ?? "Unrated"}
+                            </strong>
+                          </span>
+                          <span>
+                            Peak:{" "}
+                            <strong className="text-foreground">{acc.highestRating ?? "—"}</strong>
+                          </span>
+                          <span>
+                            Contests:{" "}
+                            <strong className="text-foreground">{acc.totalContests ?? 0}</strong>
+                          </span>
+                          <span>
+                            Solved:{" "}
+                            <strong className="text-foreground">{acc.totalSolved ?? 0}</strong>
+                          </span>
+                        </div>
+                        <a
+                          href={acc.profileUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-foreground hover:underline"
+                        >
+                          <span>@{acc.username}</span>
+                          <ExternalLink className="h-2.5 w-2.5" />
+                        </a>
+                      </div>
+                    )}
                   </div>
-                  <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 font-mono text-xs">
-                    <div className="rounded-xl bg-surface-white p-2.5 border border-charcoal/8">
-                      <span className="block text-[10px] text-muted-foreground">RATING</span>
-                      <span className="num font-heading text-base font-bold">{profile.rating}</span>
-                    </div>
-                    <div className="rounded-xl bg-surface-white p-2.5 border border-charcoal/8">
-                      <span className="block text-[10px] text-muted-foreground">MAX RATING</span>
-                      <span className="num font-heading text-base font-bold">
-                        {profile.maxRating}
-                      </span>
-                    </div>
-                    <div className="rounded-xl bg-surface-white p-2.5 border border-charcoal/8">
-                      <span className="block text-[10px] text-muted-foreground">CONTESTS</span>
-                      <span className="num font-heading text-base font-bold">
-                        {profile.contestsCount}
-                      </span>
-                    </div>
-                    <div className="rounded-xl bg-surface-white p-2.5 border border-charcoal/8">
-                      <span className="block text-[10px] text-muted-foreground">UNIQUE AC</span>
-                      <span className="num font-heading text-base font-bold">
-                        {profile.uniqueSolvedCount}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  Connecting your Codeforces handle imports your official rating, rated contest
-                  history, and deduplicated accepted problems. Imported problems are marked{" "}
-                  <strong>Imported · Classify</strong> until you classify whether they were solved
-                  independently, with a hint, or with an editorial.
-                </p>
-              )}
+                );
+              })}
             </div>
           </BentoCard>
 
