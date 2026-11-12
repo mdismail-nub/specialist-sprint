@@ -29,7 +29,7 @@ function Overview() {
   const sum = summary(data, today);
   const day = Math.min(Math.max(sum.day, 1), s.duration);
   const started = sum.day >= 1;
-  const phase = phaseFor(day);
+  const phase = phaseFor(day)!;
   const topic = topicForDay(data.topics, day);
   const todayLog = data.logs.find((l) => l.date === today);
   const nextTopic = data.topics.find((t) => t.startDay > day);
@@ -39,7 +39,7 @@ function Overview() {
 
   const saveRating = () => {
     const n = Number(rating);
-    if (!Number.isInteger(n) || n < 0 || n > 4000) return toast.error("Enter a rating between 0 and 4000.");
+    if (!Number.isInteger(n) || n < 0 || n > 4000) { toast.error("Enter a rating between 0 and 4000."); return; }
     actions.updateSettings({ currentRating: n });
     setEditing(false);
     toast.success("Rating updated");

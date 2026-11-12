@@ -33,7 +33,7 @@ function Stepper({ label, value, onChange }: { label: string; value: number; onC
 
 type Draft = Omit<Problem, "rating" | "minutes"> & { rating: string; minutes: string };
 
-export function LogForm({ initial, date, onDone }: { initial?: DailyLog; date: string; onDone: () => void }) {
+export function LogForm({ initial, date, onDone }: { initial?: DailyLog | undefined; date: string; onDone: () => void }) {
   const data = useData();
   const s = data.settings;
   const day0 = challengeDay(s, initial?.date ?? date);
@@ -67,18 +67,18 @@ export function LogForm({ initial, date, onDone }: { initial?: DailyLog; date: s
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const err: Record<string, string> = {};
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(log.date)) err.date = "Pick a valid date.";
-    if (log.minutes > 1440) err.minutes = "Can't exceed 24 hours.";
-    if (log.independent + log.hinted > log.attempted) err.attempted = "Solved new problems can't exceed attempted.";
-    if (log.maxRating != null && (log.maxRating < 800 || log.maxRating > 3500)) err.maxRating = "Rating must be 800–3500.";
-    if (data.logs.some((l) => l.date === log.date && l.id !== log.id)) err.date = "A log already exists for this date — edit it instead.";
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(log.date)) err['date'] = "Pick a valid date.";
+    if (log.minutes > 1440) err['minutes'] = "Can't exceed 24 hours.";
+    if (log.independent + log.hinted > log.attempted) err['attempted'] = "Solved new problems can't exceed attempted.";
+    if (log.maxRating != null && (log.maxRating < 800 || log.maxRating > 3500)) err['maxRating'] = "Rating must be 800–3500.";
+    if (data.logs.some((l) => l.date === log.date && l.id !== log.id)) err['date'] = "A log already exists for this date — edit it instead.";
     problems.forEach((p, i) => {
       if (!p.title.trim()) err[`p${i}`] = "Problem name is required.";
       else if (p.url && !/^https?:\/\/\S+$/.test(p.url)) err[`p${i}`] = "URL must start with http(s)://";
       else if (p.rating && (!/^\d+$/.test(p.rating) || +p.rating < 800 || +p.rating > 3500)) err[`p${i}`] = "Rating must be 800–3500.";
     });
     setErrors(err);
-    if (Object.keys(err).length) return toast.error("Please fix the highlighted fields.");
+    if (Object.keys(err).length) { toast.error("Please fix the highlighted fields."); return; }
     try {
       actions.saveLog(
         log,
@@ -94,13 +94,13 @@ export function LogForm({ initial, date, onDone }: { initial?: DailyLog; date: s
   return (
     <form onSubmit={submit} className="space-y-5">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Field label="Date" error={errors.date} className="col-span-2 sm:col-span-1">
+        <Field label="Date" error={errors['date']} className="col-span-2 sm:col-span-1">
           <Input type="date" value={log.date} onChange={(e) => onDate(e.target.value)} />
         </Field>
         <Field label="Roadmap day">
           <Input value={log.day >= 1 && log.day <= s.duration ? `Day ${log.day}` : "Outside challenge"} disabled />
         </Field>
-        <Field label="Minutes" error={errors.minutes}>
+        <Field label="Minutes" error={errors['minutes']}>
           <Input inputMode="numeric" value={log.minutes || ""} placeholder="0" onChange={(e) => set("minutes", Number(e.target.value.replace(/\D/g, "")) || 0)} />
         </Field>
         <Field label="Topic studied" className="col-span-2 sm:col-span-4">
@@ -115,10 +115,10 @@ export function LogForm({ initial, date, onDone }: { initial?: DailyLog; date: s
         <Stepper label="Hint / editorial" value={log.hinted} onChange={(n) => set("hinted", n)} />
         <Stepper label="Upsolved" value={log.upsolved} onChange={(n) => set("upsolved", n)} />
       </div>
-      {errors.attempted && <p className="-mt-3 text-xs text-destructive">{errors.attempted}</p>}
+      {errors['attempted'] && <p className="-mt-3 text-xs text-destructive">{errors['attempted']}</p>}
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Highest rating solved" error={errors.maxRating}>
+        <Field label="Highest rating solved" error={errors['maxRating']}>
           <Input inputMode="numeric" value={log.maxRating ?? ""} placeholder="e.g. 1000" onChange={(e) => set("maxRating", e.target.value ? Number(e.target.value.replace(/\D/g, "")) : null)} />
         </Field>
         <Field label="Contest (optional)">

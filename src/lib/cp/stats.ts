@@ -15,7 +15,7 @@ export function challengeDay(s: Settings, today: string): number {
 }
 
 export function phaseFor(day: number) {
-  return PHASES.find((p) => day >= p.start && day <= p.end) ?? (day < 1 ? PHASES[0] : PHASES[PHASES.length - 1]);
+  return PHASES.find((p) => day >= p.start && day <= p.end) ?? (day < 1 ? PHASES[0] : PHASES[3]);
 }
 
 export function topicForDay(topics: Topic[], day: number): Topic | undefined {

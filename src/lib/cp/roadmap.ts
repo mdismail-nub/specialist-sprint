@@ -58,7 +58,7 @@ const MINUTES = [180, 180, 180, 180];
 export function buildRoadmap(): Topic[] {
   const topics: Topic[] = [];
   PHASES.forEach((phase, pi) => {
-    const list = PHASE_TOPICS[pi];
+    const list = PHASE_TOPICS[pi] ?? [];
     const span = phase.end - phase.start + 1;
     list.forEach(([name, description, objectives], i) => {
       const startDay = phase.start + Math.floor((i * span) / list.length);
@@ -72,7 +72,7 @@ export function buildRoadmap(): Topic[] {
         endDay,
         description,
         objectives,
-        minutes: MINUTES[pi] * days,
+        minutes: (MINUTES[pi] ?? 180) * days,
         targetProblems: 3 * days,
         status: "not_started",
         notes: "",

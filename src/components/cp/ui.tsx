@@ -59,7 +59,7 @@ export function Empty({ title, children }: { title: string; children?: ReactNode
   );
 }
 
-export function Field({ label, error, children, className }: { label: string; error?: string; children: ReactNode; className?: string }) {
+export function Field({ label, error, children, className }: { label: string; error?: string | undefined; children: ReactNode; className?: string | undefined }) {
   return (
     <label className={cn("block", className)}>
       <span className="mb-1 block text-xs font-medium text-muted-foreground">{label}</span>

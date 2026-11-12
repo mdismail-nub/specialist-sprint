@@ -10,8 +10,8 @@ import { Confirm, Empty, PageHeader } from "@/components/cp/ui";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/log")({
-  validateSearch: (s: Record<string, unknown>): { date?: string } => ({
-    date: typeof s.date === "string" ? s.date : undefined,
+  validateSearch: (s: Record<string, unknown>): { date?: string | undefined } => ({
+    date: typeof s["date"] === "string" ? s["date"] : undefined,
   }),
   head: () => ({
     meta: [

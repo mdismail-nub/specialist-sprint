@@ -10,11 +10,26 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AnalyticsRouteImport } from './routes/analytics'
+import { Route as ContestsRouteImport } from './routes/contests'
 import { Route as LogRouteImport } from './routes/log'
+import { Route as ProblemsRouteImport } from './routes/problems'
+import { Route as RoadmapRouteImport } from './routes/roadmap'
+import { Route as SettingsRouteImport } from './routes/settings'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AnalyticsRoute = AnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContestsRoute = ContestsRouteImport.update({
+  id: '/contests',
+  path: '/contests',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LogRoute = LogRouteImport.update({
@@ -22,31 +37,88 @@ const LogRoute = LogRouteImport.update({
   path: '/log',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProblemsRoute = ProblemsRouteImport.update({
+  id: '/problems',
+  path: '/problems',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RoadmapRoute = RoadmapRouteImport.update({
+  id: '/roadmap',
+  path: '/roadmap',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/analytics': typeof AnalyticsRoute
+  '/contests': typeof ContestsRoute
   '/log': typeof LogRoute
+  '/problems': typeof ProblemsRoute
+  '/roadmap': typeof RoadmapRoute
+  '/settings': typeof SettingsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/analytics': typeof AnalyticsRoute
+  '/contests': typeof ContestsRoute
   '/log': typeof LogRoute
+  '/problems': typeof ProblemsRoute
+  '/roadmap': typeof RoadmapRoute
+  '/settings': typeof SettingsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/analytics': typeof AnalyticsRoute
+  '/contests': typeof ContestsRoute
   '/log': typeof LogRoute
+  '/problems': typeof ProblemsRoute
+  '/roadmap': typeof RoadmapRoute
+  '/settings': typeof SettingsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/log'
+  fullPaths:
+    | '/'
+    | '/analytics'
+    | '/contests'
+    | '/log'
+    | '/problems'
+    | '/roadmap'
+    | '/settings'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/log'
-  id: '__root__' | '/' | '/log'
+  to:
+    | '/'
+    | '/analytics'
+    | '/contests'
+    | '/log'
+    | '/problems'
+    | '/roadmap'
+    | '/settings'
+  id:
+    | '__root__'
+    | '/'
+    | '/analytics'
+    | '/contests'
+    | '/log'
+    | '/problems'
+    | '/roadmap'
+    | '/settings'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AnalyticsRoute: typeof AnalyticsRoute
+  ContestsRoute: typeof ContestsRoute
   LogRoute: typeof LogRoute
+  ProblemsRoute: typeof ProblemsRoute
+  RoadmapRoute: typeof RoadmapRoute
+  SettingsRoute: typeof SettingsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -58,6 +130,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/analytics': {
+      id: '/analytics'
+      path: '/analytics'
+      fullPath: '/analytics'
+      preLoaderRoute: typeof AnalyticsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contests': {
+      id: '/contests'
+      path: '/contests'
+      fullPath: '/contests'
+      preLoaderRoute: typeof ContestsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/log': {
       id: '/log'
       path: '/log'
@@ -65,12 +151,38 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LogRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/problems': {
+      id: '/problems'
+      path: '/problems'
+      fullPath: '/problems'
+      preLoaderRoute: typeof ProblemsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/roadmap': {
+      id: '/roadmap'
+      path: '/roadmap'
+      fullPath: '/roadmap'
+      preLoaderRoute: typeof RoadmapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AnalyticsRoute: AnalyticsRoute,
+  ContestsRoute: ContestsRoute,
   LogRoute: LogRoute,
+  ProblemsRoute: ProblemsRoute,
+  RoadmapRoute: RoadmapRoute,
+  SettingsRoute: SettingsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

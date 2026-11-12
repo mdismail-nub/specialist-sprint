@@ -5,7 +5,7 @@ export function toISO(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 export function fromISO(s: string): Date {
-  const [y, m, d] = s.split("-").map(Number);
+  const [y = 1970, m = 1, d = 1] = s.split("-").map(Number);
   return new Date(y, m - 1, d);
 }
 export function todayISO(): string {

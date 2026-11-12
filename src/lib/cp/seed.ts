@@ -66,9 +66,9 @@ export function sampleData(): AppData {
     const checklist = { studied: true, solvedNew: solved > 0, upsolved: upsolved > 0, reviewed: i % 2 === 0, notes: i % 3 !== 1 };
     let maxRating = 0;
     for (let k = 0; k < Math.min(solved, 3) && pi < titles.length; k++, pi++) {
-      const [title, code, rating] = titles[pi];
+      const [title, code, rating] = titles[pi]!;
       maxRating = Math.max(maxRating, rating);
-      const [contest, idx] = code.split("/");
+      const [contest, idx] = code.split("/") as [string, string];
       data.problems.push({
         id: `p-${pi}`,
         title,

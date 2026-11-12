@@ -29,9 +29,9 @@ describe("stats", () => {
     expect(streaks(logs, s, "2026-11-17")).toEqual({ current: 3, longest: 3 });
   });
   it("phases map to spec day ranges", () => {
-    expect(phaseFor(14).id).toBe(1);
-    expect(phaseFor(15).id).toBe(2);
-    expect(phaseFor(43).id).toBe(4);
+    expect(phaseFor(14)?.id).toBe(1);
+    expect(phaseFor(15)?.id).toBe(2);
+    expect(phaseFor(43)?.id).toBe(4);
   });
   it("summary derives solved total from logs", () => {
     const d = emptyData();
