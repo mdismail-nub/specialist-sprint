@@ -2,31 +2,17 @@
 
 Build a Minimal Competitive Programming Progress Tracker
 
-
-
 Build a polished, minimal, responsive web application called CP Tracker. It is a personal competitive programming training dashboard designed to help a student track a 60-day journey from beginner-level Codeforces problems to the Specialist rating range (1400+).
-
-
 
 The application will initially be designed and generated in Lovable.dev. Later, the project will be transferred to Google AI Studio for further development and converted into a Progressive Web App (PWA). Therefore, keep the architecture clean, modular, maintainable, and easy to extend.
 
-
-
 1. Product Philosophy
-
-
 
 This is NOT a generic productivity dashboard.
 
-
-
 The product should feel like a dedicated training companion for competitive programmers.
 
-
-
 Core principles:
-
-
 
 - Minimal and distraction-free.
 
@@ -44,11 +30,7 @@ Core principles:
 
 - Mobile-first interaction design.
 
-
-
 Design inspiration:
-
-
 
 - Linear
 
@@ -58,19 +40,11 @@ Design inspiration:
 
 - Modern minimalist productivity applications.
 
-
-
 2. Visual Design System
-
-
 
 Use a professional light theme as the default.
 
-
-
 Colors:
-
-
 
 - Background: #FFFFFF
 
@@ -88,11 +62,7 @@ Colors:
 
 - Subtle surface: #F8FAFC
 
-
-
 Typography:
-
-
 
 - Inter or Geist.
 
@@ -102,11 +72,7 @@ Typography:
 
 - Highly readable numbers.
 
-
-
 UI rules:
-
-
 
 - Thin borders instead of heavy shadows.
 
@@ -126,19 +92,11 @@ UI rules:
 
 - Avoid unnecessary animations.
 
-
-
 3. Application Layout
-
-
 
 Create a simple application shell.
 
-
-
 Desktop:
-
-
 
 - A narrow left sidebar.
 
@@ -146,11 +104,7 @@ Desktop:
 
 - Compact top header.
 
-
-
 Mobile:
-
-
 
 - Compact top navigation.
 
@@ -160,11 +114,7 @@ Mobile:
 
 - Touch-friendly controls.
 
-
-
 Navigation:
-
-
 
 1. Overview
 
@@ -176,23 +126,13 @@ Navigation:
 
 5. Settings
 
-
-
 The active navigation item should be clearly identifiable.
-
-
 
 4. Overview Dashboard
 
-
-
 This is the main landing page after opening the app.
 
-
-
 Header:
-
-
 
 - Greeting: "Keep showing up."
 
@@ -200,11 +140,7 @@ Header:
 
 - Current challenge day and date.
 
-
-
 Display four compact statistics:
-
-
 
 1. Current Codeforces Rating
 
@@ -224,19 +160,11 @@ Display four compact statistics:
 
    - Calculated automatically from completed training days.
 
-
-
 Main progress section:
-
-
 
 Title: "60-Day Specialist Challenge"
 
-
-
 Show:
-
-
 
 - Overall challenge progress percentage.
 
@@ -248,11 +176,7 @@ Show:
 
 - A clean horizontal progress bar.
 
-
-
 Use four training phases:
-
-
 
 Phase 1: Foundation — Days 1–14
 
@@ -262,15 +186,9 @@ Phase 3: Graphs & DP — Days 29–42
 
 Phase 4: Specialist Training — Days 43–60
 
-
-
 Today section:
 
-
-
 Display:
-
-
 
 - Today's date.
 
@@ -286,11 +204,7 @@ Display:
 
 - A button to open the daily log.
 
-
-
 Upcoming section:
-
-
 
 - Next training topic.
 
@@ -298,27 +212,15 @@ Upcoming section:
 
 - Remaining days until the milestone.
 
-
-
 Keep this page compact. Prioritize information instead of filling the screen with cards.
-
-
 
 5. Daily Training Log
 
-
-
 This is the most important feature.
-
-
 
 Allow the user to record daily competitive programming activities.
 
-
-
 Each daily entry should contain:
-
-
 
 - Date.
 
@@ -344,11 +246,7 @@ Each daily entry should contain:
 
 - Mistakes and lessons learned.
 
-
-
 Training checklist:
-
-
 
 - Studied today's topic.
 
@@ -360,11 +258,7 @@ Training checklist:
 
 - Updated learning notes.
 
-
-
 Features:
-
-
 
 - Create daily log.
 
@@ -378,11 +272,7 @@ Features:
 
 - Show daily completion status.
 
-
-
 Allow multiple problems to be recorded individually with:
-
-
 
 - Problem name.
 
@@ -396,23 +286,13 @@ Allow multiple problems to be recorded individually with:
 
 - Time taken.
 
-
-
 Make the daily logging process extremely quick and convenient on mobile.
-
-
 
 6. Roadmap Page
 
-
-
 Create a structured 60-day learning roadmap.
 
-
-
 Four phases:
-
-
 
 PHASE 1 — FOUNDATION
 
@@ -420,11 +300,7 @@ Days 1–14
 
 Target rating: 800–1000
 
-
-
 Topics:
-
-
 
 - Implementation and simulation
 
@@ -440,19 +316,13 @@ Topics:
 
 - C++ STL
 
-
-
 PHASE 2 — CORE PATTERNS
 
 Days 15–28
 
 Target rating: 1000–1200
 
-
-
 Topics:
-
-
 
 - Prefix sums
 
@@ -472,19 +342,13 @@ Topics:
 
 - Recursion
 
-
-
 PHASE 3 — GRAPHS & DP
 
 Days 29–42
 
 Target rating: 1200–1300
 
-
-
 Topics:
-
-
 
 - Graph representation
 
@@ -504,19 +368,13 @@ Topics:
 
 - Coin change
 
-
-
 PHASE 4 — SPECIALIST TRAINING
 
 Days 43–60
 
 Target rating: 1300–1400+
 
-
-
 Topics:
-
-
 
 - Constructive algorithms
 
@@ -536,11 +394,7 @@ Topics:
 
 - 1300–1400 rated practice
 
-
-
 Each roadmap topic should have:
-
-
 
 - Topic name.
 
@@ -560,27 +414,15 @@ Each roadmap topic should have:
 
 - Personal notes.
 
-
-
 Allow users to mark topics complete, edit topics and adjust the roadmap.
-
-
 
 Show the roadmap as a clean vertical timeline or compact list, not a complicated flowchart.
 
-
-
 7. Problem Tracker
-
-
 
 Create a dedicated problem management section.
 
-
-
 Allow adding Codeforces problems with:
-
-
 
 - Problem title.
 
@@ -604,11 +446,7 @@ Allow adding Codeforces problems with:
 
   - Re-solved
 
-
-
 Filters:
-
-
 
 - By rating.
 
@@ -618,11 +456,7 @@ Filters:
 
 - By date.
 
-
-
 Statistics:
-
-
 
 - Total problems solved.
 
@@ -634,27 +468,15 @@ Statistics:
 
 - Problems by topic.
 
-
-
 Use a clean table on desktop and compact list layout on mobile.
-
-
 
 Make Codeforces URLs clickable.
 
-
-
 8. Contest Tracker
-
-
 
 Create a simple contest history section.
 
-
-
 Fields:
-
-
 
 - Contest name.
 
@@ -674,27 +496,15 @@ Fields:
 
 - Performance notes.
 
-
-
 Display rating progression over time with a simple line chart only if sufficient rating history exists.
-
-
 
 Allow manual entry of contest results.
 
-
-
 9. Analytics Page
-
-
 
 Provide useful insights without unnecessary dashboard clutter.
 
-
-
 Show:
-
-
 
 - Total practice days.
 
@@ -712,11 +522,7 @@ Show:
 
 - Weekly practice consistency.
 
-
-
 Include:
-
-
 
 1. GitHub-style activity heatmap for 60 days.
 
@@ -726,19 +532,11 @@ Include:
 
 4. Weekly training summary.
 
-
-
 Every statistic must be calculated from actual saved data, not hardcoded numbers.
-
-
 
 10. Settings
 
-
-
 Allow the user to configure:
-
-
 
 - Name.
 
@@ -756,11 +554,7 @@ Allow the user to configure:
 
 - Theme: Light / Dark / System.
 
-
-
 Add data management:
-
-
 
 - Export all data as JSON.
 
@@ -768,27 +562,15 @@ Add data management:
 
 - Reset challenge with confirmation.
 
-
-
 11. Data Architecture
-
-
 
 Use React, TypeScript and Tailwind CSS.
 
-
-
 Use reusable components and a clear separation of UI, business logic and data management.
-
-
 
 Initially, create a functional frontend with realistic seed data.
 
-
-
 However:
-
-
 
 - Do not rely on hardcoded statistics.
 
@@ -800,23 +582,13 @@ However:
 
 - Avoid unnecessary external dependencies.
 
-
-
 Make the application easy to connect to Supabase later, but do not require Supabase for the initial prototype.
-
-
 
 Use local persistence so that user-entered data survives refreshes.
 
-
-
 Important: The application will later become a PWA through Google AI Studio. Do not add PWA installation functionality yet. Keep the application architecture compatible with future PWA implementation.
 
-
-
 12. Important User Experience Details
-
-
 
 - Every button must work.
 
@@ -840,19 +612,11 @@ Important: The application will later become a PWA through Google AI Studio. Do 
 
 - Do not build unnecessary authentication for this personal-first version.
 
-
-
 13. Final Quality Requirements
-
-
 
 Build the complete functional application, not just a landing page or static dashboard.
 
-
-
 Prioritize:
-
-
 
 1. Daily logging.
 
@@ -866,11 +630,7 @@ Prioritize:
 
 6. Mobile responsiveness.
 
-
-
 The final product should feel like a lightweight personal training system that a competitive programmer would genuinely use every day for 60 days.
-
-
 
 The interface must be clean, professional, minimal and highly usable.
 

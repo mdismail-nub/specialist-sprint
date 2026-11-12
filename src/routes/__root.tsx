@@ -15,6 +15,9 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AppShell } from "@/components/cp/AppShell";
 import { Toaster } from "sonner";
 
+const APP_DESCRIPTION =
+  "Your personal competitive programming training companion. Track problems, monitor your progress and reach Codeforces Specialist.";
+
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -77,16 +80,22 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
-    // Replace these placeholders with the app's name and description when first building the app.
-    // Each content route, / included, must still set its own head(). Never add og:image or
-    // twitter:image here: every page without its own would inherit the root's preview image.
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      {
+        name: "viewport",
+        content: "width=device-width, initial-scale=1, viewport-fit=cover",
+      },
       { title: "CP Tracker" },
-      { name: "description", content: "A 60-day Codeforces training tracker." },
+      { name: "description", content: APP_DESCRIPTION },
+      { name: "application-name", content: "CP Tracker" },
+      { name: "theme-color", content: "#25231E" },
+      { name: "mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
+      { name: "apple-mobile-web-app-title", content: "CP Tracker" },
       { property: "og:title", content: "CP Tracker" },
-      { property: "og:description", content: "A 60-day Codeforces training tracker." },
+      { property: "og:description", content: APP_DESCRIPTION },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:site", content: "@Lovable" },
@@ -96,10 +105,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: appCss,
       },
+      { rel: "manifest", href: "/manifest.webmanifest" },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "icon", href: "/icon.svg", type: "image/svg+xml" },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon.png", sizes: "180x180" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..700;1,9..40,400..600&family=Fraunces:ital,opsz,wght@1,9..144,400..600&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap",
+      },
     ],
   }),
   shellComponent: RootShell,
@@ -112,6 +127,11 @@ function RootShell({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{if('caches' in window){caches.keys().then(function(ks){var old=ks.filter(function(k){return k.indexOf('-v1')!==-1;});if(old.length>0){Promise.all(old.map(function(k){return caches.delete(k);})).then(function(){if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(function(rs){Promise.all(rs.map(function(r){return r.update();})).finally(function(){if(!sessionStorage.getItem('cp_sw_v2_reloaded')){sessionStorage.setItem('cp_sw_v2_reloaded','1');window.location.reload();}});});}});}});}}catch(e){}})();`,
+          }}
+        />
         <HeadContent />
       </head>
       <body>
@@ -131,7 +151,10 @@ function RootComponent() {
       <AppShell>
         <Outlet />
       </AppShell>
-      <Toaster position="top-center" toastOptions={{ className: "!bg-popover !text-popover-foreground !border-border" }} />
+      <Toaster
+        position="top-center"
+        toastOptions={{ className: "!bg-popover !text-popover-foreground !border-border" }}
+      />
     </QueryClientProvider>
   );
 }

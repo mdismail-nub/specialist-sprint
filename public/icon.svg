@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="112" fill="#F8F0DE" />
+  <rect x="44" y="44" width="424" height="424" rx="88" fill="#25231E" />
+  <!-- Geometric C -->
+  <path
+    d="M224 148H160C133.5 148 112 169.5 112 196V284C112 310.5 133.5 332 160 332H224V288H164C159.6 288 156 284.4 156 280V200C156 195.6 159.6 192 164 192H224V148Z"
+    fill="#F8F0DE"
+  />
+  <!-- Geometric P -->
+  <path
+    d="M256 148H344C374.9 148 400 173.1 400 204C400 234.9 374.9 260 344 260H300V332H256V148ZM300 192V216H340C346.6 216 352 210.6 352 204C352 197.4 346.6 192 340 192H300Z"
+    fill="#F8F0DE"
+  />
+  <!-- Electric Lime Progress Accent Bar & Dot -->
+  <rect x="112" y="364" width="216" height="28" rx="14" fill="#D9F45A" />
+  <circle cx="372" cy="378" r="18" fill="#D9F45A" />
+</svg>

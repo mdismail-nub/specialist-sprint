@@ -19,6 +19,9 @@ export function addDays(iso: string, n: number): string {
 export function diffDays(a: string, b: string): number {
   return Math.round((fromISO(a).getTime() - fromISO(b).getTime()) / 86400000);
 }
-export function formatDate(iso: string, opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", year: "numeric" }) {
+export function formatDate(
+  iso: string,
+  opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", year: "numeric" },
+) {
   return fromISO(iso).toLocaleDateString("en-US", opts);
 }
